@@ -2,6 +2,8 @@
 
 BuiltbyAbbs is a streamlined, client-side **AI-Powered Nutrition Assistant** designed to help users manage their dietary goals with precision. This application provides a single-page interface for tracking macronutrients, monitoring weekly performance trends, and interacting with a dedicated AI nutrition coach.
 
+[**🚀 View Live Demo**](https://billbotprocessing-star.github.io/BuiltbyAbbs/)
+
 ---
 
 ## 🚀 Features
