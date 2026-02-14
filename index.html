@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BuiltbyAbbs - Macro Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .tab-button { transition: all 0.2s; }
+        .tab-button.active { border-bottom: 2px solid #2563eb; color: #2563eb; }
+        .macro-bar { transition: width 0.5s ease; }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+        .animate-bounce { animation: bounce 0.6s infinite; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="max-w-4xl mx-auto bg-white shadow-lg min-h-screen">
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
+            <h1 class="text-2xl font-bold">BuiltbyAbbs - Macro Tracker</h1>
+            <p class="text-blue-100">Your AI-Powered Nutrition Assistant</p>
+        </div>
+
+        <!-- Tab Navigation -->
+        <div class="flex border-b overflow-x-auto" id="tabNav">
+            <button onclick="switchTab('dashboard')" class="tab-button flex-1 py-3 px-4 flex items-center justify-center gap-2 whitespace-nowrap" data-tab="dashboard">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+                <span class="hidden sm:inline">Dashboard</span>
+            </button>
+            <button onclick="switchTab('scorecard')" class="tab-button flex-1 py-3 px-4 flex items-center justify-center gap-2 whitespace-nowrap" data-tab="scorecard">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
+                <span class="hidden sm:inline">Scorecard</span>
+            </button>
+            <button onclick="switchTab('log')" class="tab-button flex-1 py-3 px-4 flex items-center justify-center gap-2 whitespace-nowrap" data-tab="log">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span class="hidden sm:inline">Log Food</span>
+            </button>
+            <button onclick="switchTab('history')" class="tab-button flex-1 py-3 px-4 flex items-center justify-center gap-2 whitespace-nowrap" data-tab="history">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span class="hidden sm:inline">History</span>
+            </button>
+            <button onclick="switchTab('coach')" class="tab-button flex-1 py-3 px-4 flex items-center justify-center gap-2 whitespace-nowrap" data-tab="coach">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span class="hidden sm:inline">AI Coach</span>
+            </button>
+        </div>
+
+        <!-- Tab Contents -->
+        <div id="tabContents"></div>
+    </div>
+
+    <!-- Goal Setup Modal -->
+    <div id="goalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 class="text-xl font-bold mb-4">Set Your Daily Goals</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">Protein (g)</label>
+                    <input type="number" id="goalProtein" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Carbs (g)</label>
+                    <input type="number" id="goalCarbs" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Fats (g)</label>
+                    <input type="number" id="goalFats" class="w-full p-2 border rounded">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-1">Calories</label>
+                    <input type="number" id="goalCalories" class="w-full p-2 border rounded">
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button onclick="closeGoalModal()" class="flex-1 py-2 border rounded-lg">Cancel</button>
+                    <button onclick="saveGoals()" class="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Goals</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State management
+        let state = {
+            activeTab: 'dashboard',
+            goals: { protein: 150, carbs: 200, fats: 65, calories: 2000 },
+            foodEntries: [],
+            chatMessages: [],
+            selectedWeek: 0,
+            editingEntry: null,
+            addingToDate: null
+        };
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            switchTab('dashboard');
+        });
+
+        // Data persistence
+        function loadData() {
+            const savedGoals = localStorage.getItem('macro-goals');
+            const savedEntries = localStorage.getItem('food-entries');
+            const savedChat = localStorage.getItem('chat-history');
+            
+            if (savedGoals) state.goals = JSON.parse(savedGoals);
+            if (savedEntries) state.foodEntries = JSON.parse(savedEntries);
+            if (savedChat) state.chatMessages = JSON.parse(savedChat);
+        }
+
+        function saveData() {
+            localStorage.setItem('macro-goals', JSON.stringify(state.goals));
+            localStorage.setItem('food-entries', JSON.stringify(state.foodEntries));
+            localStorage.setItem('chat-history', JSON.stringify(state.chatMessages));
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            state.activeTab = tabName;
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tabName);
+            });
+            renderActiveTab();
+        }
+
+        function renderActiveTab() {
+            const container = document.getElementById('tabContents');
+            switch(state.activeTab) {
+                case 'dashboard': container.innerHTML = renderDashboard(); break;
+                case 'scorecard': container.innerHTML = renderScorecard(); break;
+                case 'log': container.innerHTML = renderLogFood(); break;
+                case 'history': container.innerHTML = renderHistory(); break;
+                case 'coach': container.innerHTML = renderCoach(); break;
+            }
+        }
+
+        // Calculations
+        function getTodayEntries() {
+            const today = new Date().toLocaleDateString();
+            return state.foodEntries.filter(e => e.date === today);
+        }
+
+        function calculateTotals() {
+            return getTodayEntries().reduce((acc, e) => ({
+                protein: acc.protein + e.protein,
+                carbs: acc.carbs + e.carbs,
+                fats: acc.fats + e.fats,
+                calories: acc.calories + e.calories
+            }), { protein: 0, carbs: 0, fats: 0, calories: 0 });
+        }
+
+        function getWeekDates(weeksAgo = 0) {
+            const dates = [];
+            const today = new Date();
+            const startOfWeek = new Date(today);
+            startOfWeek.setDate(today.getDate() - today.getDay() - (weeksAgo * 7));
+            
+            for (let i = 0; i < 7; i++) {
+                const date = new Date(startOfWeek);
+                date.setDate(startOfWeek.getDate() + i);
+                dates.push(date.toLocaleDateString());
+            }
+            return dates;
+        }
+
+        function calculateDayTotals(date) {
+            const entries = state.foodEntries.filter(e => e.date === date);
+            return entries.reduce((acc, e) => ({
+                protein: acc.protein + e.protein,
+                carbs: acc.carbs + e.carbs,
+                fats: acc.fats + e.fats,
+                calories: acc.calories + e.calories
+            }), { protein: 0, carbs: 0, fats: 0, calories: 0 });
+        }
+
+        function calculateWeeklyScore(weeksAgo = 0) {
+            const weekDates = getWeekDates(weeksAgo);
+            let totalScore = 0, daysTracked = 0;
+            
+            weekDates.forEach(date => {
+                const totals = calculateDayTotals(date);
+                if (totals.calories > 0) {
+                    daysTracked++;
+                    const pScore = Math.min((totals.protein / state.goals.protein) * 100, 100);
+                    const cScore = Math.min((totals.carbs / state.goals.carbs) * 100, 100);
+                    const fScore = Math.min((totals.fats / state.goals.fats) * 100, 100);
+                    const calScore = Math.abs(totals.calories - state.goals.calories) <= state.goals.calories * 0.1 ? 100 : 70;
+                    totalScore += (pScore + cScore + fScore + calScore) / 4;
+                }
+            });
+            
+            return { score: daysTracked > 0 ? Math.round(totalScore / daysTracked) : 0, daysTracked };
+        }
+
+        // Render functions
+        function renderDashboard() {
+            const totals = calculateTotals();
+            const entries = getTodayEntries().slice(0, 3);
+            
+            return `
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold">Today's Progress</h2>
+                        <button onclick="openGoalModal()" class="text-blue-600 flex items-center gap-1 text-sm">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m5.657-13.657-4.243 4.243m0 6.828 4.243 4.243M1 12h6m6 0h6m-1.343 5.657-4.243-4.243m0-6.828L8.343 1.343"/></svg>
+                            Edit Goals
+                        </button>
+                    </div>
+                    <div class="bg-blue-50 rounded-lg p-4 mb-6 text-center">
+                        <div class="text-4xl font-bold text-blue-600">${totals.calories}</div>
+                        <div class="text-gray-600">of ${state.goals.calories} calories</div>
+                    </div>
+                    ${renderMacroBar('Protein', totals.protein, state.goals.protein, 'bg-blue-500')}
+                    ${renderMacroBar('Carbs', totals.carbs, state.goals.carbs, 'bg-orange-500')}
+                    ${renderMacroBar('Fats', totals.fats, state.goals.fats, 'bg-green-500')}
+                    <div class="mt-6">
+                        <h3 class="font-semibold mb-3">Recent Meals</h3>
+                        ${entries.length > 0 ? entries.map(e => `
+                            <div class="bg-gray-50 rounded p-3 mb-2">
+                                <div class="font-medium">${e.name}</div>
+                                <div class="text-sm text-gray-600">P: ${e.protein}g | C: ${e.carbs}g | F: ${e.fats}g | ${e.calories} cal</div>
+                            </div>
+                        `).join('') : '<p class="text-gray-500 text-center py-4">No meals logged today</p>'}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderMacroBar(label, current, goal, color) {
+            const percentage = Math.min((current / goal) * 100, 100);
+            return `
+                <div class="mb-4">
+                    <div class="flex justify-between mb-1">
+                        <span class="font-medium">${label}</span>
+                        <span class="text-sm">${current}g / ${goal}g</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-3">
+                        <div class="macro-bar h-3 rounded-full ${color}" style="width: ${percentage}%"></div>
+                    </div>
+                    <div class="text-xs text-gray-600 mt-1">
+                        ${goal - current > 0 ? `${goal - current}g remaining` : 'Goal reached!'}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderScorecard() {
+            const weekScore = calculateWeeklyScore(state.selectedWeek);
+            const weekDates = getWeekDates(state.selectedWeek);
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            
+            return `
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold">Weekly Performance</h2>
+                        <select onchange="changeWeek(this.value)" class="px-3 py-2 border rounded text-sm">
+                            ${Array.from({length: 52}, (_, i) => `
+                                <option value="${i}" ${i === state.selectedWeek ? 'selected' : ''}>
+                                    ${i === 0 ? 'This Week' : `Week ${i} ago`}
+                                </option>
+                            `).join('')}
+                        </select>
+                    </div>
+                    <div class="text-center mb-6">
+                        <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl px-8 py-6 mb-4 inline-block">
+                            <div class="text-sm text-gray-600 mb-2">Weekly Score</div>
+                            <div class="flex items-baseline justify-center gap-2">
+                                <div class="text-5xl font-bold text-blue-600">${weekScore.score}</div>
+                                <div class="text-2xl text-gray-400">/</div>
+                                <div class="text-3xl font-semibold text-gray-500">100</div>
+                            </div>
+                            <div class="mt-3 text-sm text-gray-600">
+                                ${100 - weekScore.score > 0 ? `${100 - weekScore.score}% to reach your goal` : 'Goal achieved! 🎉'}
+                            </div>
+                        </div>
+                        <div class="flex justify-center gap-6 text-sm">
+                            <div>
+                                <div class="font-semibold text-gray-700">${weekScore.daysTracked}/7</div>
+                                <div class="text-gray-500">Days Tracked</div>
+                            </div>
+                            <div>
+                                <div class="font-semibold text-gray-700">${Math.round((weekScore.daysTracked / 7) * 100)}%</div>
+                                <div class="text-gray-500">Consistency</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="font-semibold mb-3">Daily Breakdown</h3>
+                        <div class="space-y-2">
+                            ${days.map((day, i) => {
+                                const date = weekDates[i];
+                                const totals = calculateDayTotals(date);
+                                const hasData = totals.calories > 0;
+                                return `
+                                    <div>
+                                        <div class="flex items-center justify-between bg-white rounded p-3">
+                                            <div class="flex items-center gap-3">
+                                                <div class="w-12 text-sm font-medium text-gray-600">${day}</div>
+                                                <div class="text-xs text-gray-500">${new Date(date).toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}</div>
+                                            </div>
+                                            <div class="flex items-center gap-3">
+                                                ${hasData ? `
+                                                    <div class="text-right">
+                                                        <div class="text-sm font-semibold">${totals.calories} cal</div>
+                                                        <div class="text-xs text-gray-500">P: ${totals.protein}g | C: ${totals.carbs}g | F: ${totals.fats}g</div>
+                                                    </div>
+                                                ` : '<div class="text-sm text-gray-400">No data</div>'}
+                                                <button onclick="startAddingToDate('${date}')" class="text-blue-600 hover:text-blue-700">
+                                                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div id="addForm-${date}" class="hidden ml-16 mt-2"></div>
+                                        <div id="entries-${date}" class="ml-16 mt-2 space-y-1"></div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderLogFood() {
+            return `
+                <div class="p-6">
+                    <h2 class="text-xl font-bold mb-4">Log Food</h2>
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium mb-2">Upload Photo</label>
+                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                            <input type="file" accept="image/*" onchange="handleImageUpload(event)" class="hidden" id="imageUpload">
+                            <label for="imageUpload" class="cursor-pointer">
+                                <svg width="48" height="48" class="mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                                <p class="text-gray-600">Click to upload food photo or nutrition label</p>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="border-t pt-6">
+                        <h3 class="font-semibold mb-4">Manual Entry</h3>
+                        <div class="space-y-3">
+                            <input type="text" id="foodName" placeholder="Food name" class="w-full p-2 border rounded">
+                            <div class="grid grid-cols-2 gap-3">
+                                <input type="number" id="foodProtein" placeholder="Protein (g)" class="p-2 border rounded">
+                                <input type="number" id="foodCarbs" placeholder="Carbs (g)" class="p-2 border rounded">
+                                <input type="number" id="foodFats" placeholder="Fats (g)" class="p-2 border rounded">
+                                <input type="number" id="foodCalories" placeholder="Calories" class="p-2 border rounded">
+                            </div>
+                            <button onclick="addFood()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700">Add Food</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderHistory() {
+            return `
+                <div class="p-6">
+                    <h2 class="text-xl font-bold mb-4">Food History</h2>
+                    ${state.foodEntries.length === 0 ? 
+                        '<p class="text-gray-500 text-center py-8">No entries yet</p>' :
+                        state.foodEntries.map(e => `
+                            <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div>
+                                        <div class="font-semibold">${e.name}</div>
+                                        <div class="text-sm text-gray-600">${e.date} at ${e.time}</div>
+                                    </div>
+                                    <button onclick="deleteEntry(${e.id})" class="text-red-500 hover:text-red-700">
+                                        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    </button>
+                                </div>
+                                <div class="grid grid-cols-4 gap-2 text-sm">
+                                    <div class="bg-blue-100 rounded p-2 text-center">
+                                        <div class="font-semibold">${e.protein}g</div>
+                                        <div class="text-xs text-gray-600">Protein</div>
+                                    </div>
+                                    <div class="bg-orange-100 rounded p-2 text-center">
+                                        <div class="font-semibold">${e.carbs}g</div>
+                                        <div class="text-xs text-gray-600">Carbs</div>
+                                    </div>
+                                    <div class="bg-green-100 rounded p-2 text-center">
+                                        <div class="font-semibold">${e.fats}g</div>
+                                        <div class="text-xs text-gray-600">Fats</div>
+                                    </div>
+                                    <div class="bg-gray-200 rounded p-2 text-center">
+                                        <div class="font-semibold">${e.calories}</div>
+                                        <div class="text-xs text-gray-600">Cal</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')
+                    }
+                </div>
+            `;
+        }
+
+        function renderCoach() {
+            return `
+                <div class="flex flex-col h-[calc(100vh-180px)]">
+                    <div class="p-6 border-b">
+                        <h2 class="text-xl font-bold">AI Nutrition Coach</h2>
+                        <p class="text-sm text-gray-600">Ask me anything about nutrition, meal ideas, or your progress!</p>
+                    </div>
+                    <div class="flex-1 overflow-y-auto p-6 space-y-4" id="chatMessages">
+                        ${state.chatMessages.length === 0 ? `
+                            <div class="text-center text-gray-500 py-8">
+                                <svg width="48" height="48" class="mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                <p>Start a conversation with your AI nutrition coach!</p>
+                            </div>
+                        ` : state.chatMessages.map(m => `
+                            <div class="flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}">
+                                <div class="max-w-[80%] rounded-lg p-3 ${m.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100'}">
+                                    ${m.content}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="p-4 border-t">
+                        <div class="flex gap-2">
+                            <input type="text" id="chatInput" placeholder="Ask about nutrition..." class="flex-1 p-3 border rounded-lg" onkeypress="if(event.key==='Enter') sendChat()">
+                            <button onclick="sendChat()" class="bg-blue-600 text-white px-6 rounded-lg hover:bg-blue-700">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Actions
+        function openGoalModal() {
+            document.getElementById('goalProtein').value = state.goals.protein;
+            document.getElementById('goalCarbs').value = state.goals.carbs;
+            document.getElementById('goalFats').value = state.goals.fats;
+            document.getElementById('goalCalories').value = state.goals.calories;
+            document.getElementById('goalModal').classList.remove('hidden');
+        }
+
+        function closeGoalModal() {
+            document.getElementById('goalModal').classList.add('hidden');
+        }
+
+        function saveGoals() {
+            state.goals = {
+                protein: parseInt(document.getElementById('goalProtein').value) || 0,
+                carbs: parseInt(document.getElementById('goalCarbs').value) || 0,
+                fats: parseInt(document.getElementById('goalFats').value) || 0,
+                calories: parseInt(document.getElementById('goalCalories').value) || 0
+            };
+            saveData();
+            closeGoalModal();
+            renderActiveTab();
+        }
+
+        function addFood() {
+            const name = document.getElementById('foodName').value;
+            if (!name) return;
+            
+            const entry = {
+                id: Date.now(),
+                name,
+                protein: parseFloat(document.getElementById('foodProtein').value) || 0,
+                carbs: parseFloat(document.getElementById('foodCarbs').value) || 0,
+                fats: parseFloat(document.getElementById('foodFats').value) || 0,
+                calories: parseFloat(document.getElementById('foodCalories').value) || 0,
+                date: new Date().toLocaleDateString(),
+                time: new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
+            };
+            
+            state.foodEntries.unshift(entry);
+            saveData();
+            document.getElementById('foodName').value = '';
+            document.getElementById('foodProtein').value = '';
+            document.getElementById('foodCarbs').value = '';
+            document.getElementById('foodFats').value = '';
+            document.getElementById('foodCalories').value = '';
+            alert('Food added successfully!');
+        }
+
+        function deleteEntry(id) {
+            if (confirm('Delete this entry?')) {
+                state.foodEntries = state.foodEntries.filter(e => e.id !== id);
+                saveData();
+                renderActiveTab();
+            }
+        }
+
+        function changeWeek(value) {
+            state.selectedWeek = parseInt(value);
+            renderActiveTab();
+        }
+
+        function startAddingToDate(date) {
+            state.addingToDate = date;
+            const form = document.getElementById(`addForm-${date}`);
+            form.classList.remove('hidden');
+            form.innerHTML = `
+                <div class="bg-green-50 rounded p-3 space-y-2">
+                    <div class="font-medium text-sm text-green-700 mb-2">Add meal to ${new Date(date).toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}</div>
+                    <input type="text" id="newName-${date}" placeholder="Food name" class="w-full p-2 border rounded text-sm">
+                    <div class="grid grid-cols-4 gap-2">
+                        <input type="number" id="newP-${date}" placeholder="Protein" class="p-2 border rounded text-sm">
+                        <input type="number" id="newC-${date}" placeholder="Carbs" class="p-2 border rounded text-sm">
+                        <input type="number" id="newF-${date}" placeholder="Fats" class="p-2 border rounded text-sm">
+                        <input type="number" id="newCal-${date}" placeholder="Calories" class="p-2 border rounded text-sm">
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="addToDate('${date}')" class="flex-1 bg-green-600 text-white py-2 rounded text-sm">Add Meal</button>
+                        <button onclick="cancelAdd('${date}')" class="flex-1 bg-gray-300 text-gray-700 py-2 rounded text-sm">Cancel</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function addToDate(date) {
+            const name = document.getElementById(`newName-${date}`).value;
+            if (!name) return;
+            
+            const entry = {
+                id: Date.now(),
+                name,
+                protein: parseFloat(document.getElementById(`newP-${date}`).value) || 0,
+                carbs: parseFloat(document.getElementById(`newC-${date}`).value) || 0,
+                fats: parseFloat(document.getElementById(`newF-${date}`).value) || 0,
+                calories: parseFloat(document.getElementById(`newCal-${date}`).value) || 0,
+                date,
+                time: new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
+            };
+            
+            state.foodEntries.unshift(entry);
+            state.addingToDate = null;
+            saveData();
+            renderActiveTab();
+        }
+
+        function cancelAdd(date) {
+            state.addingToDate = null;
+            document.getElementById(`addForm-${date}`).classList.add('hidden');
+        }
+
+        async function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            alert('Analyzing image... This feature requires Claude API access.');
+        }
+
+        async function sendChat() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+            
+            state.chatMessages.push({ role: 'user', content: message });
+            input.value = '';
+            renderActiveTab();
+            
+            // Simulate AI response (in production, call Claude API)
+            setTimeout(() => {
+                const totals = calculateTotals();
+                const response = `Based on your progress (${totals.protein}g/${state.goals.protein}g protein, ${totals.carbs}g/${state.goals.carbs}g carbs, ${totals.fats}g/${state.goals.fats}g fats), I'd recommend focusing on hitting your protein goal first. What specific nutrition questions do you have?`;
+                state.chatMessages.push({ role: 'assistant', content: response });
+                saveData();
+                renderActiveTab();
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
