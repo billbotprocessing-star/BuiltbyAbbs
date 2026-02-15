@@ -570,6 +570,8 @@
                     body: JSON.stringify({
                         message: message,
                         context: context,
+                        goals: state.goals,
+                        currentProgress: totals,
                         conversationHistory: state.chatMessages.slice(0, -1).filter(m => m.content !== 'Thinking...').slice(-10)
                     })
                 });
