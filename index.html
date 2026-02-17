@@ -414,23 +414,27 @@
             if (!state.user) return;
             
             try {
-                const response = await fetch('https://billbotprocessing.app.n8n.cloud/webhook/history', {
+                const response = await fetch('https://billbotprocessing.app.n8n.cloud/webhook/load', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        userId: state.user.userId,
-                        action: 'load'
+                        userId: state.user.userId
                     })
                 });
                 
                 const data = await response.json();
                 
-                if (response.ok && data.success) {
+                if (response.ok) {
+                    // Accept data regardless of a success flag — just check fields exist
+                    if (data.userId && data.userId !== state.user.userId) {
+                        console.warn('userId mismatch — data may belong to another user');
+                    }
                     if (data.goals) state.goals = data.goals;
                     if (data.foodEntries) state.foodEntries = data.foodEntries;
                     if (data.chatMessages) state.chatMessages = data.chatMessages;
+                    console.log('User data loaded successfully for:', state.user.userId);
                 } else {
                     console.log('No existing data found for user, starting fresh');
                 }
