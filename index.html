@@ -327,8 +327,6 @@
 
         // n8n is still used for AI features (photo analysis, barcode, AI coach)
         const N8N_BASE = 'https://billbotprocessing.app.n8n.cloud/webhook';
-        // Old storage endpoint, used ONLY by the one-time "Import old data" button
-        const LEGACY_LOAD_URL = N8N_BASE + '/load';
         // Named in the AI permission screen (Apple requires naming it). Replace with the provider your n8n coach uses.
         const AI_PROVIDER_NAME = 'a third-party AI provider';
 
@@ -698,7 +696,6 @@
                 </div>
                 <button class="btn secondary" style="margin-bottom:10px" onclick="openGoalSheet()">Edit daily goals</button>
                 ${isStandalone() ? '' : '<button class="btn secondary" style="margin-bottom:10px" onclick="installApp()">Install app</button>'}
-                <button class="btn secondary" style="margin-bottom:10px" onclick="closeSheet(); importLegacyData()">Import old data</button>
                 ${state.user.aiConsent ? '<button class="btn secondary" style="margin-bottom:10px" onclick="withdrawAIConsent()">Turn off AI features</button>' : ''}
                 <button class="btn" onclick="handleLogout()">Log out</button>
                 <button class="link" style="width:100%;margin-top:6px;color:var(--over)" onclick="openDeleteSheet()">Delete account</button>
@@ -880,92 +877,6 @@
             } catch (error) {
                 console.error('Failed to load data from Supabase:', error);
                 toast('Could not load your data: ' + (error.message || 'check your connection.'), 'error');
-            }
-        }
-
-        // ---------- One-time import from the old n8n storage ----------
-        async function importLegacyData() {
-            const oldId = prompt('Enter your OLD User ID (the one shown by the previous version of the app):');
-            if (!oldId || !oldId.trim()) return;
-
-            showBusy('Reading old data...');
-            try {
-                const res = await fetch(LEGACY_LOAD_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: oldId.trim() })
-                });
-                let data = await res.json();
-                if (Array.isArray(data)) data = data[0];
-                if (!res.ok || !data) throw new Error('The old storage returned no data for that User ID.');
-
-                // n8n / sheets sometimes hand back JSON as a string
-                const parse = v => { if (typeof v === 'string') { try { return JSON.parse(v); } catch { return null; } } return v; };
-                const oldEntries = parse(data.foodEntries) || [];
-                const oldChat = parse(data.chatMessages) || [];
-                const oldGoals = parse(data.goals);
-
-                // Convert old locale date strings (e.g. "9/19/2026") to YYYY-MM-DD and skip duplicates
-                const seen = new Set(state.foodEntries.map(e => `${e.name}|${e.date}|${e.time}|${e.calories}`));
-                let skippedBadDate = 0, skippedDupes = 0;
-                const rows = [];
-                // Old data is newest-first; insert oldest-first so ids keep chronological order
-                [...oldEntries].reverse().forEach(e => {
-                    const d = new Date(e.date);
-                    if (isNaN(d)) { skippedBadDate++; return; }
-                    const entry = {
-                        name: String(e.name || 'Unnamed'),
-                        protein: num(e.protein), carbs: num(e.carbs), fats: num(e.fats), calories: num(e.calories),
-                        date: toISO(d), time: e.time || ''
-                    };
-                    const key = `${entry.name}|${entry.date}|${entry.time}|${entry.calories}`;
-                    if (seen.has(key)) { skippedDupes++; return; }
-                    seen.add(key);
-                    rows.push({ user_id: state.user.userId, ...toRow(entry) });
-                });
-
-                hideBusy();
-                const summary = `Found ${oldEntries.length} entries, ${oldChat.length} chat messages` +
-                    `${oldGoals ? ' and your goals' : ''}.\n\nImport ${rows.length} new entries` +
-                    `${skippedDupes ? ` (${skippedDupes} duplicates skipped)` : ''}` +
-                    `${skippedBadDate ? ` (${skippedBadDate} skipped: unreadable date)` : ''}?`;
-                if (!confirm(summary)) return;
-
-                showBusy('Importing...');
-                for (let i = 0; i < rows.length; i += 200) {
-                    const { error } = await sb.from('food_entries').insert(rows.slice(i, i + 200));
-                    if (error) throw error;
-                }
-
-                if (oldGoals && typeof oldGoals === 'object') {
-                    const { error } = await sb.from('user_goals').upsert({
-                        user_id: state.user.userId,
-                        protein: num(oldGoals.protein), carbs: num(oldGoals.carbs),
-                        fats: num(oldGoals.fats), calories: num(oldGoals.calories),
-                        updated_at: new Date().toISOString()
-                    }, { onConflict: 'user_id' });
-                    if (error) throw error;
-                }
-
-                if (state.chatMessages.length === 0 && oldChat.length) {
-                    const chatRows = oldChat
-                        .filter(m => m && (m.role === 'user' || m.role === 'assistant') && m.content && m.content !== 'Thinking...')
-                        .slice(-50)
-                        .map(m => ({ user_id: state.user.userId, role: m.role, content: String(m.content) }));
-                    if (chatRows.length) {
-                        const { error } = await sb.from('chat_messages').insert(chatRows);
-                        if (error) throw error;
-                    }
-                }
-
-                await loadData();
-                renderActiveTab();
-                toast('Import complete');
-            } catch (error) {
-                console.error('Legacy import failed:', error);
-                toast('Import failed: ' + (error.message || error), 'error');
-            } finally {
-                hideBusy();
             }
         }
 
