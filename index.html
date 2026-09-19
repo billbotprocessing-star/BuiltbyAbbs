@@ -32,7 +32,9 @@
         const LEGACY_LOAD_URL = N8N_BASE + '/load';
 
         const isConfigured = !SUPABASE_URL.includes('YOUR_PROJECT_REF') && !SUPABASE_ANON_KEY.startsWith('YOUR_');
-        const sb = isConfigured ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+        // Keep only https://<ref>.supabase.co (drops any accidental /rest/v1/ or trailing slash)
+        const SUPABASE_BASE = isConfigured ? new URL(SUPABASE_URL.trim()).origin : '';
+        const sb = isConfigured ? window.supabase.createClient(SUPABASE_BASE, SUPABASE_ANON_KEY.trim()) : null;
 
         // State management
         let state = {
