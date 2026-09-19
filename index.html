@@ -2,28 +2,288 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#F2F4F1" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0F1713" media="(prefers-color-scheme: dark)">
     <title>BuiltbyAbbs - Macro Tracker</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        .tab-button { transition: all 0.2s; }
-        .tab-button.active { border-bottom: 2px solid #2563eb; color: #2563eb; }
-        .macro-bar { transition: width 0.5s ease; }
-        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-        .animate-bounce { animation: bounce 0.6s infinite; }
+        /* ---------- Design tokens ----------
+           Color carries data: buttons are neutral (ink); protein, carbs and fats each keep one hue everywhere. */
+        :root {
+            --chalk: #F2F4F1;
+            --surface: #FFFFFF;
+            --ink: #18251F;
+            --ink-2: #55635B;
+            --line: #DCE2DD;
+            --protein: #2E5BD8;
+            --carbs: #E9A23B;
+            --fats: #C8557A;
+            --ok: #2E8B57;
+            --over: #D2492F;
+            --display: 'Bricolage Grotesque', system-ui, -apple-system, 'Segoe UI', sans-serif;
+            --body: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --chalk: #0F1713;
+                --surface: #17211C;
+                --ink: #EBF1ED;
+                --ink-2: #9DADA3;
+                --line: #26342D;
+                --protein: #6C93FF;
+                --carbs: #F0B24E;
+                --fats: #E27A9C;
+                --ok: #4CC28A;
+                --over: #FF7458;
+            }
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { height: 100%; margin: 0; }
+        body {
+            background: var(--chalk);
+            color: var(--ink);
+            font: 400 16px/1.45 var(--body);
+            overflow: hidden;
+            -webkit-text-size-adjust: 100%;
+        }
+        button, input { font: inherit; color: inherit; }
+        button { cursor: pointer; }
+        h1, h2, h3, p { margin: 0; }
+        .hidden { display: none !important; }
+        .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+        :focus-visible { outline: 2px solid var(--protein); outline-offset: 2px; }
+        .num { font-family: var(--display); font-variant-numeric: tabular-nums; }
+
+        /* ---------- Layout ---------- */
+        #root { height: 100%; }
+        .app {
+            max-width: 480px; margin: 0 auto;
+            height: 100vh; height: 100dvh;
+            display: flex; flex-direction: column;
+        }
+        .topbar {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: calc(12px + env(safe-area-inset-top)) 20px 8px;
+        }
+        .wordmark { font: 700 18px var(--display); letter-spacing: -0.01em; }
+        .avatar {
+            width: 40px; height: 40px; border-radius: 50%; border: 0;
+            background: var(--ink); color: var(--chalk);
+            font: 700 16px var(--display);
+        }
+        .screen {
+            flex: 1; overflow-y: auto; overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            padding: 8px 20px 32px;
+        }
+        .screen.is-coach { display: flex; flex-direction: column; padding-bottom: 12px; }
+
+        .tabbar {
+            display: grid; grid-template-columns: repeat(5, 1fr);
+            background: var(--surface); border-top: 1px solid var(--line);
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .tab {
+            display: flex; flex-direction: column; align-items: center; gap: 2px;
+            min-height: 60px; padding: 6px 0 6px;
+            border: 0; background: none; color: var(--ink-2);
+            font: 600 12px var(--body);
+        }
+        .tab .ico { width: 52px; height: 30px; border-radius: 15px; display: grid; place-items: center; transition: background .2s; }
+        .tab[aria-current="page"] { color: var(--ink); }
+        .tab[aria-current="page"] .ico { background: var(--ink); color: var(--chalk); }
+
+        /* ---------- Type ---------- */
+        .h1 { font: 700 28px/1.1 var(--display); letter-spacing: -0.02em; }
+        .h2 { font: 700 18px/1.2 var(--display); }
+        .sub { color: var(--ink-2); font-size: 14px; margin-top: 4px; }
+        .between { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+        .section { padding: 20px 0; border-top: 1px solid var(--line); }
+        .link {
+            background: none; border: 0; padding: 0 4px; min-height: 44px;
+            font-weight: 600; font-size: 14px; text-decoration: underline; text-underline-offset: 3px;
+        }
+
+        /* ---------- Controls ---------- */
+        .btn {
+            width: 100%; min-height: 48px; padding: 0 20px;
+            border: 0; border-radius: 14px;
+            background: var(--ink); color: var(--chalk);
+            font: 600 16px var(--body);
+            transition: transform .1s;
+        }
+        .btn:active { transform: scale(.98); }
+        .btn:disabled { opacity: .5; }
+        .btn.secondary { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+        .btn.small { width: auto; min-height: 44px; padding: 0 16px; font-size: 15px; border-radius: 12px; }
+        .field { display: block; margin-bottom: 12px; }
+        .field > span { display: block; font-size: 13px; font-weight: 600; color: var(--ink-2); margin-bottom: 6px; }
+        .in {
+            width: 100%; min-height: 48px; padding: 0 14px;
+            border: 1.5px solid var(--line); border-radius: 12px;
+            background: var(--surface); color: var(--ink);
+            font-size: 16px; /* 16px stops iOS from zooming on focus */
+        }
+        .in:focus { border-color: var(--ink); outline: none; }
+        .in:focus-visible { outline: 2px solid var(--protein); outline-offset: 2px; }
+        .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .iconbtn {
+            width: 44px; height: 44px; border-radius: 50%; border: 0; background: transparent;
+            display: grid; place-items: center; color: var(--ink-2); flex-shrink: 0;
+        }
+        .iconbtn:disabled { opacity: .3; }
+        .pill {
+            min-height: 36px; padding: 0 12px; border: 1.5px solid var(--line); border-radius: 999px;
+            background: var(--surface); font-weight: 600; font-size: 13px;
+        }
+        .msg { padding: 12px 14px; border-radius: 12px; font-size: 14px; margin-top: 16px; }
+        .msg.error { background: rgba(210, 73, 47, .14); background: color-mix(in srgb, var(--over) 14%, transparent); color: var(--over); }
+        .msg.info { background: rgba(46, 139, 87, .14); background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+
+        /* ---------- Macro display ---------- */
+        .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+        .mc { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--ink-2); margin-right: 12px; }
+        .mc i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .mc b { color: var(--ink); font-weight: 700; }
+        .ringwrap { display: grid; place-items: center; padding: 20px 0 24px; }
+        .ring { width: min(72vw, 270px); height: auto; }
+        .ringcap { margin-top: 6px; color: var(--ink-2); font-size: 14px; }
+        .mbar { margin-bottom: 18px; }
+        .mhead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; font-weight: 600; }
+        .mhead .num { font-size: 15px; }
+        .bar { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; }
+        .bar > i { display: block; height: 100%; border-radius: 5px; transition: width .5s ease; }
+        .mfoot { margin-top: 6px; font-size: 13px; color: var(--ink-2); }
+
+        .weekstrip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; margin-top: 14px; }
+        .wd { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+        .wc {
+            width: 36px; height: 36px; border-radius: 50%; margin: 4px auto 0;
+            display: grid; place-items: center;
+            font: 700 14px var(--display); border: 1.5px solid var(--line); color: var(--ink-2);
+        }
+        .wc.logged { background: var(--ink); color: var(--chalk); border-color: var(--ink); }
+        .wc.today { outline: 2px solid var(--ink); outline-offset: 2px; }
+        .wc.future { opacity: .45; }
+        .streak {
+            display: inline-flex; align-items: center; padding: 6px 14px;
+            border: 1.5px solid var(--line); border-radius: 999px;
+            font-weight: 600; font-size: 14px;
+        }
+
+        .note { border-left: 3px solid var(--ink); padding: 2px 0 2px 14px; }
+        .note .who { font: 700 14px var(--display); margin-bottom: 4px; }
+        .note p { font-size: 15px; }
+
+        .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+        .row:first-of-type { border-top: 0; }
+        .rname { font-weight: 600; word-break: break-word; }
+        .rmeta { margin-top: 2px; }
+        .rcal { font-size: 18px; font-weight: 700; white-space: nowrap; }
+        .rcal small { font: 500 13px var(--body); color: var(--ink-2); }
+        .empty { padding: 8px 0 4px; }
+        .empty p { color: var(--ink-2); margin-bottom: 14px; }
+
+        .gh { display: flex; justify-content: space-between; align-items: baseline; padding: 20px 0 6px; font: 700 16px var(--display); }
+        .gh small { font: 500 13px var(--body); color: var(--ink-2); }
+
+        .score { font: 700 64px/1 var(--display); letter-spacing: -0.03em; }
+        .weeknav { display: flex; align-items: center; justify-content: space-between; }
+        .weeknav .label { text-align: center; }
+
+        /* ---------- Log tab ---------- */
+        .searchrow { display: flex; gap: 8px; }
+        .result {
+            display: block; width: 100%; text-align: left; background: none; border: 0;
+            border-top: 1px solid var(--line); padding: 12px 0; min-height: 56px;
+        }
+        .result .rname { font-size: 15px; }
+        .picked { border-left: 3px solid var(--ink); padding: 4px 0 4px 14px; }
+        .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .tile {
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+            min-height: 96px; padding: 12px 8px; text-align: center;
+            border: 1.5px dashed var(--line); border-radius: 14px;
+            font-weight: 600; font-size: 14px; cursor: pointer;
+        }
+
+        /* ---------- Coach ---------- */
+        .msgs { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 8px 0; min-height: 0; }
+        .bubble { max-width: 86%; padding: 10px 14px; border-radius: 16px; white-space: pre-wrap; word-break: break-word; }
+        .bubble.user { align-self: flex-end; background: var(--ink); color: var(--chalk); border-bottom-right-radius: 6px; }
+        .bubble.coach { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 6px; }
+        .bubble.wait { color: var(--ink-2); }
+        .chat-empty { margin: auto 0; padding: 12px 0; }
+        .qchips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+        .qchip {
+            min-height: 44px; padding: 0 16px; border: 1.5px solid var(--line); border-radius: 999px;
+            background: var(--surface); font-weight: 600; font-size: 14px;
+        }
+        .composer { display: flex; gap: 8px; padding-top: 8px; }
+        .send { width: 48px; height: 48px; border-radius: 50%; border: 0; background: var(--ink); color: var(--chalk); display: grid; place-items: center; flex-shrink: 0; }
+
+        /* ---------- Sheet, toast, busy ---------- */
+        .sheet { position: fixed; inset: 0; z-index: 50; display: none; }
+        .sheet.open { display: block; }
+        .scrim { position: absolute; inset: 0; background: rgba(8, 18, 13, .5); }
+        .panel {
+            position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+            width: min(100%, 480px); max-height: 88vh; max-height: 88dvh; overflow-y: auto;
+            background: var(--surface); border-radius: 20px 20px 0 0;
+            padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+            animation: rise .22s ease-out;
+        }
+        .panel:focus { outline: none; }
+        @keyframes rise { from { transform: translate(-50%, 24px); opacity: .6; } to { transform: translate(-50%, 0); opacity: 1; } }
+        .toast {
+            position: fixed; left: 50%; transform: translateX(-50%); z-index: 60;
+            bottom: calc(80px + env(safe-area-inset-bottom));
+            max-width: calc(100% - 32px); padding: 12px 18px; border-radius: 12px;
+            background: var(--ink); color: var(--chalk); font-weight: 600; font-size: 14px; text-align: center;
+        }
+        .toast.error { background: var(--over); color: #fff; }
+        .busy {
+            position: fixed; z-index: 70; left: 50%; transform: translateX(-50%);
+            top: calc(64px + env(safe-area-inset-top));
+            display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-radius: 999px;
+            background: var(--ink); color: var(--chalk); font-weight: 600; font-size: 14px;
+        }
+        .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ---------- Login ---------- */
+        .auth-wrap { height: 100vh; height: 100dvh; overflow-y: auto; }
+        .auth { max-width: 420px; margin: 0 auto; padding: calc(48px + env(safe-area-inset-top)) 24px 32px; }
+        .brand { font: 700 40px/1.05 var(--display); letter-spacing: -0.03em; }
+        .tag { color: var(--ink-2); margin-top: 10px; max-width: 30ch; }
+        .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--line); border-radius: 12px; padding: 4px; margin: 28px 0 20px; }
+        .seg button { min-height: 44px; border: 0; border-radius: 9px; background: transparent; color: var(--ink-2); font-weight: 600; font-size: 15px; }
+        .seg button[aria-selected="true"] { background: var(--surface); color: var(--ink); }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation: none !important; transition: none !important; }
+        }
     </style>
 </head>
-<body class="bg-gray-50">
-    <!-- Content will be dynamically rendered here -->
+<body>
+    <div id="root"></div>
+    <div id="busy" class="busy hidden" role="status" aria-live="polite"><span class="spin"></span><span id="busyText"></span></div>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+    <div id="sheet" class="sheet" aria-hidden="true"></div>
 
     <script>
         // =====================================================================
-        // CONFIG  --  fill these in from Supabase > Project Settings > API
+        // CONFIG  --  from Supabase > Project Settings > API
         // (the anon / publishable key is safe in the browser because RLS
         //  protects the data; NEVER put the service_role key here)
         // =====================================================================
-        const SUPABASE_URL = 'https://dnxovaywkdvpfdtlqgvy.supabase.co/rest/v1/';
+        const SUPABASE_URL = 'https://dnxovaywkdvpfdtlqgvy.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRueG92YXl3a2R2cGZkdGxxZ3Z5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4MzY5ODksImV4cCI6MjEwNTQxMjk4OX0.cQE2zfdtkMPiyYc4zyf1OLttjyEPpF_oocp4Fni74iw';
 
         // n8n is still used for AI features (photo analysis, barcode, AI coach)
@@ -43,12 +303,11 @@
             foodEntries: [],
             chatMessages: [],
             selectedWeek: 0,
-            editingEntry: null,
-            addingToDate: null,
             user: null,
             isAuthenticated: false,
             foodSearch: newFoodSearch()
         };
+        let chatBusy = false;
 
         function newFoodSearch() {
             return { query: '', loading: false, results: null, error: null, selected: null, grams: 100 };
@@ -61,55 +320,95 @@
         // Parse YYYY-MM-DD as a LOCAL date (new Date('2026-09-19') would be UTC and can show the previous day)
         function parseISO(s) { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); }
         function fmtShort(s) { return parseISO(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
-        function fmtLong(s) { return parseISO(s).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }); }
+        function fmtLong(s) { return parseISO(s).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
         function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
         function round1(n) { return Math.round(n * 10) / 10; }
         function pct(value, goal) { return goal > 0 ? Math.min((value / goal) * 100, 100) : 0; }
+        function fmt(n) { return Number(n).toLocaleString('en-US'); }
+        function truncate(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1).trimEnd() + '...' : s; }
         // Escape anything user- or AI-supplied before it goes into innerHTML
         function esc(s) {
             return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
         }
         function nowTime() { return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+        function greeting() { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'; }
+        function firstName() { return String((state.user && state.user.name) || '').trim().split(' ')[0] || 'there'; }
         function fromRow(r) {
             return {
-                id: r.id,
-                name: r.name,
-                protein: num(r.protein),
-                carbs: num(r.carbs),
-                fats: num(r.fats),
-                calories: num(r.calories),
-                date: r.entry_date,
-                time: r.entry_time || ''
+                id: r.id, name: r.name,
+                protein: num(r.protein), carbs: num(r.carbs), fats: num(r.fats), calories: num(r.calories),
+                date: r.entry_date, time: r.entry_time || ''
             };
         }
         function toRow(e) {
             return {
-                name: e.name,
-                protein: e.protein,
-                carbs: e.carbs,
-                fats: e.fats,
-                calories: e.calories,
-                entry_date: e.date,
-                entry_time: e.time
+                name: e.name, protein: e.protein, carbs: e.carbs, fats: e.fats, calories: e.calories,
+                entry_date: e.date, entry_time: e.time
             };
         }
 
+        // ---------- Icons (one consistent set) ----------
+        const ICONS = {
+            today: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>',
+            week: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+            plus: '<path d="M12 5v14M5 12h14"/>',
+            history: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+            coach: '<path d="M21 15a2 2 0 0 1-2 2H8l-5 4V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+            search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>',
+            camera: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="4"/>',
+            barcode: '<path d="M4 6v12M7 6v12M10 6v12M14 6v12M17 6v12M20 6v12"/>',
+            trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+            left: '<path d="M15 5l-7 7 7 7"/>',
+            right: '<path d="M9 5l7 7-7 7"/>',
+            send: '<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>'
+        };
+        function icon(name, size = 22) {
+            return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+        }
+
+        // ---------- Toast, busy, sheet ----------
+        let toastTimer;
+        function toast(msg, type) {
+            const el = document.getElementById('toast');
+            if (!el) return;
+            el.textContent = msg;
+            el.className = 'toast' + (type === 'error' ? ' error' : '');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => el.classList.add('hidden'), type === 'error' ? 5000 : 2600);
+        }
+        function showBusy(text) {
+            document.getElementById('busyText').textContent = text;
+            document.getElementById('busy').classList.remove('hidden');
+        }
+        function hideBusy() { document.getElementById('busy').classList.add('hidden'); }
+
+        function openSheet(label, html) {
+            const s = document.getElementById('sheet');
+            s.innerHTML = `<div class="scrim" onclick="closeSheet()"></div>
+                <div class="panel" role="dialog" aria-modal="true" aria-label="${esc(label)}" tabindex="-1">${html}</div>`;
+            s.classList.add('open');
+            s.setAttribute('aria-hidden', 'false');
+            const panel = s.querySelector('.panel');
+            if (panel) panel.focus({ preventScroll: true });
+        }
+        function closeSheet() {
+            const s = document.getElementById('sheet');
+            if (!s) return;
+            s.classList.remove('open');
+            s.setAttribute('aria-hidden', 'true');
+            s.innerHTML = '';
+        }
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet(); });
+
         // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            checkAuth();
-        });
+        document.addEventListener('DOMContentLoaded', () => { checkAuth(); });
 
         // ---------- Authentication (Supabase Auth) ----------
         async function checkAuth() {
             if (!isConfigured) {
-                document.body.innerHTML = `
-                    <div class="min-h-screen flex items-center justify-center p-6">
-                        <div class="bg-white rounded-xl shadow p-6 max-w-md">
-                            <h1 class="text-xl font-bold mb-2">Supabase not configured</h1>
-                            <p class="text-gray-600 text-sm">Open <code>index.html</code> and set <code>SUPABASE_URL</code> and
-                            <code>SUPABASE_ANON_KEY</code> near the top of the script.</p>
-                        </div>
-                    </div>`;
+                document.getElementById('root').innerHTML = `
+                    <div class="auth"><h1 class="h1">Supabase is not configured</h1>
+                    <p class="sub">Open index.html and set SUPABASE_URL and SUPABASE_ANON_KEY near the top of the script.</p></div>`;
                 return;
             }
 
@@ -145,103 +444,51 @@
         }
 
         function renderLogin() {
-            document.body.innerHTML = `
-                <div class="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-4">
-                    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
-                        <div class="text-center mb-8">
-                            <h1 class="text-3xl font-bold text-gray-800 mb-2">BuiltbyAbbs</h1>
-                            <p class="text-gray-600">Macro Tracker</p>
-                        </div>
+            closeSheet();
+            document.getElementById('root').innerHTML = `
+                <div class="auth-wrap"><div class="auth">
+                    <div class="brand">BuiltbyAbbs</div>
+                    <p class="tag">Log your meals, hit your macros, and get coached by Abbs.</p>
 
-                        <!-- Login Form -->
-                        <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                <input type="email" id="loginEmail" required autocomplete="email"
-                                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="your@email.com">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                                <input type="password" id="loginPassword" required autocomplete="current-password"
-                                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="••••••••">
-                            </div>
-                            <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition">
-                                Login
-                            </button>
-                        </form>
-
-                        <!-- Signup Form (Hidden by default) -->
-                        <form id="signupForm" onsubmit="handleSignup(event)" class="space-y-4 hidden">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                                <input type="text" id="signupName" required autocomplete="name"
-                                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="Your name">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                <input type="email" id="signupEmail" required autocomplete="email"
-                                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="your@email.com">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                                <input type="password" id="signupPassword" required minlength="6" autocomplete="new-password"
-                                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="••••••••">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-                                <input type="password" id="signupPasswordConfirm" required minlength="6" autocomplete="new-password"
-                                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="••••••••">
-                            </div>
-                            <button type="submit" class="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition">
-                                Create Account
-                            </button>
-                        </form>
-
-                        <!-- Toggle between Login/Signup -->
-                        <div class="mt-6 text-center">
-                            <button id="toggleAuthMode" onclick="toggleAuthMode()" class="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                                Don't have an account? Sign up
-                            </button>
-                        </div>
-
-                        <div id="authError" class="hidden mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                            <p class="text-red-600 text-sm"></p>
-                        </div>
-                        <div id="authInfo" class="hidden mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                            <p class="text-green-700 text-sm"></p>
-                        </div>
-
-                        <div id="authLoading" class="hidden mt-4 text-center">
-                            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                            <p class="text-gray-600 mt-2">Processing...</p>
-                        </div>
+                    <div class="seg" role="tablist">
+                        <button id="segLogin" role="tab" aria-selected="true" onclick="setAuthMode('login')">Log in</button>
+                        <button id="segSignup" role="tab" aria-selected="false" onclick="setAuthMode('signup')">Create account</button>
                     </div>
-                </div>
+
+                    <form id="loginForm" onsubmit="handleLogin(event)">
+                        <label class="field"><span>Email</span>
+                            <input class="in" type="email" id="loginEmail" required autocomplete="email" inputmode="email" autocapitalize="none" placeholder="you@email.com"></label>
+                        <label class="field"><span>Password</span>
+                            <input class="in" type="password" id="loginPassword" required autocomplete="current-password" placeholder="Your password"></label>
+                        <button class="btn" type="submit">Log in</button>
+                    </form>
+
+                    <form id="signupForm" class="hidden" onsubmit="handleSignup(event)">
+                        <label class="field"><span>Name</span>
+                            <input class="in" type="text" id="signupName" required autocomplete="name" placeholder="First name"></label>
+                        <label class="field"><span>Email</span>
+                            <input class="in" type="email" id="signupEmail" required autocomplete="email" inputmode="email" autocapitalize="none" placeholder="you@email.com"></label>
+                        <label class="field"><span>Password</span>
+                            <input class="in" type="password" id="signupPassword" required minlength="6" autocomplete="new-password" placeholder="At least 6 characters"></label>
+                        <label class="field"><span>Confirm password</span>
+                            <input class="in" type="password" id="signupPasswordConfirm" required minlength="6" autocomplete="new-password" placeholder="Repeat your password"></label>
+                        <button class="btn" type="submit">Create account</button>
+                    </form>
+
+                    <div id="authError" class="msg error hidden"><p></p></div>
+                    <div id="authInfo" class="msg info hidden"><p></p></div>
+                </div></div>
             `;
         }
 
-        function toggleAuthMode() {
-            const loginForm = document.getElementById('loginForm');
-            const signupForm = document.getElementById('signupForm');
-            const toggleBtn = document.getElementById('toggleAuthMode');
+        function setAuthMode(mode) {
+            const login = mode === 'login';
+            document.getElementById('loginForm').classList.toggle('hidden', !login);
+            document.getElementById('signupForm').classList.toggle('hidden', login);
+            document.getElementById('segLogin').setAttribute('aria-selected', String(login));
+            document.getElementById('segSignup').setAttribute('aria-selected', String(!login));
             document.getElementById('authError').classList.add('hidden');
             document.getElementById('authInfo').classList.add('hidden');
-
-            if (loginForm.classList.contains('hidden')) {
-                loginForm.classList.remove('hidden');
-                signupForm.classList.add('hidden');
-                toggleBtn.textContent = "Don't have an account? Sign up";
-            } else {
-                loginForm.classList.add('hidden');
-                signupForm.classList.remove('hidden');
-                toggleBtn.textContent = "Already have an account? Login";
-            }
         }
 
         function showAuthError(msg) {
@@ -253,40 +500,37 @@
 
         async function handleLogin(event) {
             event.preventDefault();
-
+            const btn = event.target.querySelector('button[type="submit"]');
             const email = document.getElementById('loginEmail').value.trim();
             const password = document.getElementById('loginPassword').value;
-            const loadingDiv = document.getElementById('authLoading');
 
             document.getElementById('authError').classList.add('hidden');
-            loadingDiv.classList.remove('hidden');
+            btn.disabled = true; btn.textContent = 'Logging in...';
 
             try {
                 const { data, error } = await sb.auth.signInWithPassword({ email, password });
                 if (error) throw error;
-                loadingDiv.classList.add('hidden');
                 await startSession(data.user);
             } catch (error) {
                 console.error('Login error:', error);
-                loadingDiv.classList.add('hidden');
+                btn.disabled = false; btn.textContent = 'Log in';
                 showAuthError(error.message || 'Login failed. Please try again.');
             }
         }
 
         async function handleSignup(event) {
             event.preventDefault();
-
+            const btn = event.target.querySelector('button[type="submit"]');
             const name = document.getElementById('signupName').value.trim();
             const email = document.getElementById('signupEmail').value.trim();
             const password = document.getElementById('signupPassword').value;
             const passwordConfirm = document.getElementById('signupPasswordConfirm').value;
-            const loadingDiv = document.getElementById('authLoading');
 
             if (password !== passwordConfirm) return showAuthError('Passwords do not match');
             if (password.length < 6) return showAuthError('Password must be at least 6 characters');
 
             document.getElementById('authError').classList.add('hidden');
-            loadingDiv.classList.remove('hidden');
+            btn.disabled = true; btn.textContent = 'Creating account...';
 
             try {
                 const { data, error } = await sb.auth.signUp({
@@ -299,110 +543,88 @@
                     }
                 });
                 if (error) throw error;
-                loadingDiv.classList.add('hidden');
 
                 if (data.session) {
-                    // Email confirmation is off: user is signed in immediately
                     await startSession(data.user);
                 } else {
-                    // Email confirmation is on: user must click the link first
+                    btn.disabled = false; btn.textContent = 'Create account';
                     const info = document.getElementById('authInfo');
                     info.classList.remove('hidden');
-                    info.querySelector('p').textContent = 'Account created! Check your email to confirm your address, then log in.';
+                    info.querySelector('p').textContent = 'Account created. Check your email to confirm your address, then log in.';
                 }
             } catch (error) {
                 console.error('Signup error:', error);
-                loadingDiv.classList.add('hidden');
+                btn.disabled = false; btn.textContent = 'Create account';
                 showAuthError(error.message || 'Signup failed. Please try again.');
             }
         }
 
         async function handleLogout() {
-            if (!confirm('Are you sure you want to logout?')) return;
+            if (!confirm('Log out of BuiltbyAbbs?')) return;
+            closeSheet();
             await sb.auth.signOut();   // onAuthStateChange(SIGNED_OUT) renders the login screen
         }
 
+        // ---------- App shell ----------
+        function tabButton(id, label, ic) {
+            return `<button class="tab" data-tab="${id}" onclick="switchTab('${id}')"><span class="ico">${icon(ic)}</span><span>${label}</span></button>`;
+        }
+
         function renderApp() {
-            document.body.innerHTML = `
-                <div class="max-w-4xl mx-auto bg-white shadow-lg min-h-screen">
-                    <!-- Header -->
-                    <div class="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <h1 class="text-2xl font-bold">BuiltbyAbbs - Macro Tracker</h1>
-                                <p class="text-blue-100">Your AI-Powered Nutrition Assistant</p>
-                            </div>
-                            <div class="text-right">
-                                <p class="text-sm text-blue-100">Welcome, ${esc(state.user.name)}</p>
-                                <button onclick="importLegacyData()" class="text-xs text-blue-200 hover:text-white underline mr-3">
-                                    Import old data
-                                </button>
-                                <button onclick="handleLogout()" class="text-xs text-blue-200 hover:text-white underline">
-                                    Logout
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Tab Navigation -->
-                    <div class="flex border-b overflow-x-auto" id="tabNav">
-                        <button onclick="switchTab('dashboard')" class="tab-button flex-1 py-3 px-4 flex items-center justify-center gap-2 whitespace-nowrap" data-tab="dashboard">
-                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-                            <span class="hidden sm:inline">Dashboard</span>
-                        </button>
-                        <button onclick="switchTab('scorecard')" class="tab-button flex-1 py-3 px-4 flex items-center justify-center gap-2 whitespace-nowrap" data-tab="scorecard">
-                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>
-                            <span class="hidden sm:inline">Scorecard</span>
-                        </button>
-                        <button onclick="switchTab('log')" class="tab-button flex-1 py-3 px-4 flex items-center justify-center gap-2 whitespace-nowrap" data-tab="log">
-                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                            <span class="hidden sm:inline">Log Food</span>
-                        </button>
-                        <button onclick="switchTab('history')" class="tab-button flex-1 py-3 px-4 flex items-center justify-center gap-2 whitespace-nowrap" data-tab="history">
-                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                            <span class="hidden sm:inline">History</span>
-                        </button>
-                        <button onclick="switchTab('coach')" class="tab-button flex-1 py-3 px-4 flex items-center justify-center gap-2 whitespace-nowrap" data-tab="coach">
-                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                            <span class="hidden sm:inline">AI Coach</span>
-                        </button>
-                    </div>
-
-                    <!-- Tab Contents -->
-                    <div id="tabContents"></div>
-                </div>
-
-                <!-- Goal Setup Modal -->
-                <div id="goalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div class="bg-white rounded-lg p-6 max-w-md w-full">
-                        <h3 class="text-xl font-bold mb-4">Set Your Daily Goals</h3>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="block text-sm font-medium mb-1">Protein (g)</label>
-                                <input type="number" id="goalProtein" class="w-full p-2 border rounded">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium mb-1">Carbs (g)</label>
-                                <input type="number" id="goalCarbs" class="w-full p-2 border rounded">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium mb-1">Fats (g)</label>
-                                <input type="number" id="goalFats" class="w-full p-2 border rounded">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-medium mb-1">Calories</label>
-                                <input type="number" id="goalCalories" class="w-full p-2 border rounded">
-                            </div>
-                            <div class="flex gap-3 pt-4">
-                                <button onclick="closeGoalModal()" class="flex-1 py-2 border rounded-lg">Cancel</button>
-                                <button onclick="saveGoals()" class="flex-1 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Save Goals</button>
-                            </div>
-                        </div>
-                    </div>
+            const initial = esc(firstName().charAt(0).toUpperCase());
+            document.getElementById('root').innerHTML = `
+                <div class="app">
+                    <header class="topbar">
+                        <div class="wordmark">BuiltbyAbbs</div>
+                        <button class="avatar" onclick="openMenuSheet()" aria-label="Account menu">${initial}</button>
+                    </header>
+                    <main id="screen" class="screen" tabindex="-1"></main>
+                    <nav class="tabbar" aria-label="Main">
+                        ${tabButton('dashboard', 'Today', 'today')}
+                        ${tabButton('scorecard', 'Week', 'week')}
+                        ${tabButton('log', 'Log', 'plus')}
+                        ${tabButton('history', 'History', 'history')}
+                        ${tabButton('coach', 'Coach', 'coach')}
+                    </nav>
                 </div>
             `;
-
             switchTab('dashboard');
+        }
+
+        function openMenuSheet() {
+            openSheet('Account', `
+                <div class="between" style="margin-bottom:16px">
+                    <div><div class="h2">${esc(state.user.name)}</div><div class="sub">${esc(state.user.email)}</div></div>
+                    <button class="iconbtn" onclick="closeSheet()" aria-label="Close">${icon('left', 20)}</button>
+                </div>
+                <button class="btn secondary" style="margin-bottom:10px" onclick="openGoalSheet()">Edit daily goals</button>
+                <button class="btn secondary" style="margin-bottom:10px" onclick="closeSheet(); importLegacyData()">Import old data</button>
+                <button class="btn" onclick="handleLogout()">Log out</button>
+            `);
+        }
+
+        function switchTab(tabName) {
+            state.activeTab = tabName;
+            document.querySelectorAll('.tab').forEach(btn => {
+                if (btn.dataset.tab === tabName) btn.setAttribute('aria-current', 'page');
+                else btn.removeAttribute('aria-current');
+            });
+            renderActiveTab();
+            const el = document.getElementById('screen');
+            if (el && tabName !== 'coach') el.scrollTop = 0;
+        }
+
+        function renderActiveTab() {
+            const container = document.getElementById('screen');
+            if (!container) return;
+            container.classList.toggle('is-coach', state.activeTab === 'coach');
+            switch (state.activeTab) {
+                case 'dashboard': container.innerHTML = renderDashboard(); break;
+                case 'scorecard': container.innerHTML = renderScorecard(); break;
+                case 'log': container.innerHTML = renderLogFood(); break;
+                case 'history': container.innerHTML = renderHistory(); break;
+                case 'coach': container.innerHTML = renderCoach(); scrollChatToBottom(); break;
+            }
         }
 
         // ---------- Data persistence (Supabase Postgres, protected by RLS) ----------
@@ -428,18 +650,15 @@
 
                 if (goalsRes.data) {
                     state.goals = {
-                        protein: num(goalsRes.data.protein),
-                        carbs: num(goalsRes.data.carbs),
-                        fats: num(goalsRes.data.fats),
-                        calories: num(goalsRes.data.calories)
+                        protein: num(goalsRes.data.protein), carbs: num(goalsRes.data.carbs),
+                        fats: num(goalsRes.data.fats), calories: num(goalsRes.data.calories)
                     };
                 }
                 state.foodEntries = (entriesRes.data || []).map(fromRow);
                 state.chatMessages = (chatRes.data || []).reverse();
-                console.log('User data loaded for:', uid);
             } catch (error) {
                 console.error('Failed to load data from Supabase:', error);
-                alert('Unable to load your data: ' + (error.message || 'please check your connection and that the database tables exist.'));
+                toast('Could not load your data: ' + (error.message || 'check your connection.'), 'error');
             }
         }
 
@@ -448,6 +667,7 @@
             const oldId = prompt('Enter your OLD User ID (the one shown by the previous version of the app):');
             if (!oldId || !oldId.trim()) return;
 
+            showBusy('Reading old data...');
             try {
                 const res = await fetch(LEGACY_LOAD_URL, {
                     method: 'POST',
@@ -483,12 +703,14 @@
                     rows.push({ user_id: state.user.userId, ...toRow(entry) });
                 });
 
+                hideBusy();
                 const summary = `Found ${oldEntries.length} entries, ${oldChat.length} chat messages` +
                     `${oldGoals ? ' and your goals' : ''}.\n\nImport ${rows.length} new entries` +
                     `${skippedDupes ? ` (${skippedDupes} duplicates skipped)` : ''}` +
                     `${skippedBadDate ? ` (${skippedBadDate} skipped: unreadable date)` : ''}?`;
                 if (!confirm(summary)) return;
 
+                showBusy('Importing...');
                 for (let i = 0; i < rows.length; i += 200) {
                     const { error } = await sb.from('food_entries').insert(rows.slice(i, i + 200));
                     if (error) throw error;
@@ -517,35 +739,16 @@
 
                 await loadData();
                 renderActiveTab();
-                alert('Import complete!');
+                toast('Import complete');
             } catch (error) {
                 console.error('Legacy import failed:', error);
-                alert('Import failed: ' + (error.message || error));
+                toast('Import failed: ' + (error.message || error), 'error');
+            } finally {
+                hideBusy();
             }
         }
 
-        // Tab switching
-        function switchTab(tabName) {
-            state.activeTab = tabName;
-            document.querySelectorAll('.tab-button').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.tab === tabName);
-            });
-            renderActiveTab();
-        }
-
-        function renderActiveTab() {
-            const container = document.getElementById('tabContents');
-            if (!container) return;
-            switch (state.activeTab) {
-                case 'dashboard': container.innerHTML = renderDashboard(); break;
-                case 'scorecard': container.innerHTML = renderScorecard(); break;
-                case 'log': container.innerHTML = renderLogFood(); break;
-                case 'history': container.innerHTML = renderHistory(); break;
-                case 'coach': container.innerHTML = renderCoach(); break;
-            }
-        }
-
-        // Calculations
+        // ---------- Calculations ----------
         function getTodayEntries() {
             const today = toISO(new Date());
             return state.foodEntries.filter(e => e.date === today);
@@ -560,17 +763,18 @@
             }), { protein: 0, carbs: 0, fats: 0, calories: 0 });
         }
 
-        function calculateTotals() {
-            const t = sumEntries(getTodayEntries());
+        function roundTotals(t) {
             return { protein: round1(t.protein), carbs: round1(t.carbs), fats: round1(t.fats), calories: Math.round(t.calories) };
         }
+
+        function calculateTotals() { return roundTotals(sumEntries(getTodayEntries())); }
+        function calculateDayTotals(date) { return roundTotals(sumEntries(state.foodEntries.filter(e => e.date === date))); }
 
         function getWeekDates(weeksAgo = 0) {
             const dates = [];
             const today = new Date();
             const startOfWeek = new Date(today.getFullYear(), today.getMonth(), today.getDate());
             startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() - (weeksAgo * 7));
-
             for (let i = 0; i < 7; i++) {
                 const date = new Date(startOfWeek);
                 date.setDate(startOfWeek.getDate() + i);
@@ -579,15 +783,9 @@
             return dates;
         }
 
-        function calculateDayTotals(date) {
-            const t = sumEntries(state.foodEntries.filter(e => e.date === date));
-            return { protein: round1(t.protein), carbs: round1(t.carbs), fats: round1(t.fats), calories: Math.round(t.calories) };
-        }
-
         function calculateWeeklyScore(weeksAgo = 0) {
             const weekDates = getWeekDates(weeksAgo);
             let totalScore = 0, daysTracked = 0;
-
             weekDates.forEach(date => {
                 const totals = calculateDayTotals(date);
                 if (totals.calories > 0) {
@@ -599,289 +797,368 @@
                     totalScore += (pScore + cScore + fScore + calScore) / 4;
                 }
             });
-
             return { score: daysTracked > 0 ? Math.round(totalScore / daysTracked) : 0, daysTracked };
         }
 
-        // Render functions
+        // Consecutive logged days ending today (or yesterday, if today is not logged yet)
+        function calcStreak() {
+            const days = new Set(state.foodEntries.map(e => e.date));
+            const d = new Date();
+            if (!days.has(toISO(d))) d.setDate(d.getDate() - 1);
+            let streak = 0;
+            while (days.has(toISO(d))) { streak++; d.setDate(d.getDate() - 1); }
+            return streak;
+        }
+
+        // ---------- Shared bits ----------
+        function dots(m) {
+            return `<span class="mc"><i style="background:var(--protein)"></i><span class="sr">protein </span>${m.protein}g</span>` +
+                   `<span class="mc"><i style="background:var(--carbs)"></i><span class="sr">carbs </span>${m.carbs}g</span>` +
+                   `<span class="mc"><i style="background:var(--fats)"></i><span class="sr">fats </span>${m.fats}g</span>`;
+        }
+        function macroLine(m) {
+            return `<span class="mc"><b>${fmt(m.calories)}</b> cal</span>` + dots(m);
+        }
+
+        // The calorie ring: arcs are split by where the calories came from (protein, carbs, fats)
+        function renderRing(t) {
+            const goal = num(state.goals.calories), cal = t.calories;
+            const R = 92, C = 2 * Math.PI * R, sw = 20;
+            const filled = goal > 0 ? Math.min(cal / goal, 1) : 0;
+            const parts = [[t.protein * 4, 'var(--protein)'], [t.carbs * 4, 'var(--carbs)'], [t.fats * 9, 'var(--fats)']].filter(p => p[0] > 0);
+            const sum = parts.reduce((a, p) => a + p[0], 0);
+            let off = 0, arcs = '';
+            parts.forEach(([v, color]) => {
+                const len = (v / sum) * filled * C;
+                const gap = parts.length > 1 ? 3 : 0;
+                arcs += `<circle cx="120" cy="120" r="${R}" fill="none" style="stroke:${color}" stroke-width="${sw}"
+                    stroke-dasharray="${Math.max(len - gap, 0.01)} ${C}" stroke-dashoffset="${-off}" transform="rotate(-90 120 120)"/>`;
+                off += len;
+            });
+            const rem = goal - cal, over = rem < 0;
+            return `
+                <svg class="ring" viewBox="0 0 240 240" role="img" aria-label="${fmt(cal)} of ${fmt(goal)} calories logged, ${fmt(Math.abs(rem))} ${over ? 'over' : 'left'}">
+                    <circle cx="120" cy="120" r="${R}" fill="none" style="stroke:var(--line)" stroke-width="${sw}"/>
+                    ${arcs}
+                    <text x="120" y="122" text-anchor="middle" style="font:700 46px var(--display);fill:${over ? 'var(--over)' : 'var(--ink)'}">${fmt(Math.abs(rem))}</text>
+                    <text x="120" y="148" text-anchor="middle" style="font:500 14px var(--body);fill:var(--ink-2)">${over ? 'calories over' : 'calories left'}</text>
+                </svg>
+                <p class="ringcap">${fmt(cal)} of ${fmt(goal)} calories</p>`;
+        }
+
+        function renderMacroBar(label, current, goal, colorVar) {
+            const remaining = round1(goal - current);
+            return `
+                <div class="mbar">
+                    <div class="mhead">
+                        <span><span class="dot" style="background:var(${colorVar})"></span>${label}</span>
+                        <span class="num">${current} / ${goal} g</span>
+                    </div>
+                    <div class="bar"><i style="width:${pct(current, goal)}%;background:var(${colorVar})"></i></div>
+                    <div class="mfoot">${remaining > 0 ? `${remaining} g to go` : 'Goal reached'}</div>
+                </div>`;
+        }
+
+        // ---------- Screens ----------
         function renderDashboard() {
             const totals = calculateTotals();
-            const entries = getTodayEntries().slice(0, 3);
+            const meals = getTodayEntries();
+            const streak = calcStreak();
+            const todayISO = toISO(new Date());
+            const weekDates = getWeekDates(0);
+            const letters = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+            const logged = new Set(state.foodEntries.map(e => e.date));
+            const lastCoach = [...state.chatMessages].reverse().find(m => m.role === 'assistant' && m.content !== 'Thinking...');
 
             return `
-                <div class="p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-xl font-bold">Today's Progress</h2>
-                        <button onclick="openGoalModal()" class="text-blue-600 flex items-center gap-1 text-sm">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6m5.657-13.657-4.243 4.243m0 6.828 4.243 4.243M1 12h6m6 0h6m-1.343 5.657-4.243-4.243m0-6.828L8.343 1.343"/></svg>
-                            Edit Goals
-                        </button>
+                <section>
+                    <h1 class="h1">${greeting()}, ${esc(firstName())}</h1>
+                    <p class="sub">${fmtLong(todayISO)}</p>
+                </section>
+
+                <section class="ringwrap">${renderRing(totals)}</section>
+
+                <section class="section" style="border-top:0;padding-top:0">
+                    <div class="between" style="margin-bottom:14px">
+                        <h2 class="h2">Macros</h2>
+                        <button class="link" onclick="openGoalSheet()">Edit goals</button>
                     </div>
-                    <div class="bg-blue-50 rounded-lg p-4 mb-6 text-center">
-                        <div class="text-4xl font-bold text-blue-600">${totals.calories}</div>
-                        <div class="text-gray-600">of ${state.goals.calories} calories</div>
+                    ${renderMacroBar('Protein', totals.protein, state.goals.protein, '--protein')}
+                    ${renderMacroBar('Carbs', totals.carbs, state.goals.carbs, '--carbs')}
+                    ${renderMacroBar('Fats', totals.fats, state.goals.fats, '--fats')}
+                </section>
+
+                <section class="section">
+                    <div class="between">
+                        <h2 class="h2">This week</h2>
+                        <span class="streak">${streak > 0 ? `${streak}-day streak` : 'Log a meal to start a streak'}</span>
                     </div>
-                    ${renderMacroBar('Protein', totals.protein, state.goals.protein, 'bg-blue-500')}
-                    ${renderMacroBar('Carbs', totals.carbs, state.goals.carbs, 'bg-orange-500')}
-                    ${renderMacroBar('Fats', totals.fats, state.goals.fats, 'bg-green-500')}
-                    <div class="mt-6">
-                        <h3 class="font-semibold mb-3">Recent Meals</h3>
-                        ${entries.length > 0 ? entries.map(e => `
-                            <div class="bg-gray-50 rounded p-3 mb-2">
-                                <div class="font-medium">${esc(e.name)}</div>
-                                <div class="text-sm text-gray-600">P: ${e.protein}g | C: ${e.carbs}g | F: ${e.fats}g | ${e.calories} cal</div>
+                    <div class="weekstrip">
+                        ${weekDates.map((d, i) => `
+                            <div>
+                                <div class="wd">${letters[i]}</div>
+                                <div class="wc${logged.has(d) ? ' logged' : ''}${d === todayISO ? ' today' : ''}${d > todayISO ? ' future' : ''}"
+                                     aria-label="${fmtLong(d)}${logged.has(d) ? ', logged' : ''}">${parseISO(d).getDate()}</div>
+                            </div>`).join('')}
+                    </div>
+                </section>
+
+                <section class="section">
+                    <div class="note">
+                        <div class="who">Abbs</div>
+                        <p>${lastCoach ? esc(truncate(lastCoach.content, 220)) : 'Say hi and Abbs will look at your numbers and tell you what to eat next.'}</p>
+                        <button class="link" style="padding-left:0" onclick="switchTab('coach')">Open coach</button>
+                    </div>
+                </section>
+
+                <section class="section">
+                    <div class="between">
+                        <h2 class="h2">Today's meals</h2>
+                        ${meals.length > 4 ? `<button class="link" onclick="switchTab('history')">See all</button>` : ''}
+                    </div>
+                    ${meals.length > 0 ? meals.slice(0, 4).map(e => `
+                        <div class="row">
+                            <div>
+                                <div class="rname">${esc(e.name)}</div>
+                                <div class="rmeta">${dots(e)}</div>
                             </div>
-                        `).join('') : '<p class="text-gray-500 text-center py-4">No meals logged today</p>'}
-                    </div>
-                </div>
+                            <div class="rcal num">${fmt(e.calories)}<small> cal</small></div>
+                        </div>`).join('') : `
+                        <div class="empty">
+                            <p>Nothing logged yet. Your first meal starts today's ring.</p>
+                            <button class="btn" onclick="switchTab('log')">Log food</button>
+                        </div>`}
+                </section>
             `;
         }
 
-        function renderMacroBar(label, current, goal, color) {
-            const percentage = pct(current, goal);
-            const remaining = round1(goal - current);
-            return `
-                <div class="mb-4">
-                    <div class="flex justify-between mb-1">
-                        <span class="font-medium">${label}</span>
-                        <span class="text-sm">${current}g / ${goal}g</span>
-                    </div>
-                    <div class="w-full bg-gray-200 rounded-full h-3">
-                        <div class="macro-bar h-3 rounded-full ${color}" style="width: ${percentage}%"></div>
-                    </div>
-                    <div class="text-xs text-gray-600 mt-1">
-                        ${remaining > 0 ? `${remaining}g remaining` : 'Goal reached!'}
-                    </div>
-                </div>
-            `;
+        function weekLabel(n) { return n === 0 ? 'This week' : n === 1 ? 'Last week' : `${n} weeks ago`; }
+
+        function shiftWeek(delta) {
+            state.selectedWeek = Math.min(51, Math.max(0, state.selectedWeek + delta));
+            renderActiveTab();
         }
 
         function renderScorecard() {
             const weekScore = calculateWeeklyScore(state.selectedWeek);
             const weekDates = getWeekDates(state.selectedWeek);
             const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const todayISO = toISO(new Date());
+            const togo = 100 - weekScore.score;
+            const scoreLine = weekScore.daysTracked === 0 ? 'Log a meal to start this week\'s score.'
+                : togo > 0 ? `${togo} points from a perfect week.` : 'A perfect week.';
 
             return `
-                <div class="p-6">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-xl font-bold">Weekly Performance</h2>
-                        <select onchange="changeWeek(this.value)" class="px-3 py-2 border rounded text-sm">
-                            ${Array.from({length: 52}, (_, i) => `
-                                <option value="${i}" ${i === state.selectedWeek ? 'selected' : ''}>
-                                    ${i === 0 ? 'This Week' : `Week ${i} ago`}
-                                </option>
-                            `).join('')}
-                        </select>
+                <div class="weeknav">
+                    <button class="iconbtn" onclick="shiftWeek(1)" aria-label="Previous week" ${state.selectedWeek >= 51 ? 'disabled' : ''}>${icon('left')}</button>
+                    <div class="label">
+                        <div class="h2">${weekLabel(state.selectedWeek)}</div>
+                        <div class="sub" style="margin-top:0">${fmtShort(weekDates[0])} to ${fmtShort(weekDates[6])}</div>
                     </div>
-                    <div class="text-center mb-6">
-                        <div class="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl px-8 py-6 mb-4 inline-block">
-                            <div class="text-sm text-gray-600 mb-2">Weekly Score</div>
-                            <div class="flex items-baseline justify-center gap-2">
-                                <div class="text-5xl font-bold text-blue-600">${weekScore.score}</div>
-                                <div class="text-2xl text-gray-400">/</div>
-                                <div class="text-3xl font-semibold text-gray-500">100</div>
-                            </div>
-                            <div class="mt-3 text-sm text-gray-600">
-                                ${100 - weekScore.score > 0 ? `${100 - weekScore.score}% to reach your goal` : 'Goal achieved! 🎉'}
-                            </div>
-                        </div>
-                        <div class="flex justify-center gap-6 text-sm">
-                            <div>
-                                <div class="font-semibold text-gray-700">${weekScore.daysTracked}/7</div>
-                                <div class="text-gray-500">Days Tracked</div>
-                            </div>
-                            <div>
-                                <div class="font-semibold text-gray-700">${Math.round((weekScore.daysTracked / 7) * 100)}%</div>
-                                <div class="text-gray-500">Consistency</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bg-gray-50 rounded-lg p-4">
-                        <h3 class="font-semibold mb-3">Daily Breakdown</h3>
-                        <div class="space-y-2">
-                            ${days.map((day, i) => {
-                                const date = weekDates[i];
-                                const totals = calculateDayTotals(date);
-                                const hasData = totals.calories > 0;
-                                return `
-                                    <div>
-                                        <div class="flex items-center justify-between bg-white rounded p-3">
-                                            <div class="flex items-center gap-3">
-                                                <div class="w-12 text-sm font-medium text-gray-600">${day}</div>
-                                                <div class="text-xs text-gray-500">${fmtShort(date)}</div>
-                                            </div>
-                                            <div class="flex items-center gap-3">
-                                                ${hasData ? `
-                                                    <div class="text-right">
-                                                        <div class="text-sm font-semibold">${totals.calories} cal</div>
-                                                        <div class="text-xs text-gray-500">P: ${totals.protein}g | C: ${totals.carbs}g | F: ${totals.fats}g</div>
-                                                    </div>
-                                                ` : '<div class="text-sm text-gray-400">No data</div>'}
-                                                <button onclick="startAddingToDate('${date}')" class="text-blue-600 hover:text-blue-700">
-                                                    <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div id="addForm-${date}" class="hidden ml-16 mt-2"></div>
-                                        <div id="entries-${date}" class="ml-16 mt-2 space-y-1"></div>
-                                    </div>
-                                `;
-                            }).join('')}
-                        </div>
-                    </div>
+                    <button class="iconbtn" onclick="shiftWeek(-1)" aria-label="Next week" ${state.selectedWeek <= 0 ? 'disabled' : ''}>${icon('right')}</button>
                 </div>
+
+                <section style="padding:24px 0 20px">
+                    <div class="between" style="align-items:flex-end">
+                        <div>
+                            <div class="score">${weekScore.score}</div>
+                            <div class="sub">Weekly score out of 100</div>
+                        </div>
+                        <div style="text-align:right">
+                            <div class="h2 num">${weekScore.daysTracked} of 7</div>
+                            <div class="sub" style="margin-top:0">days logged</div>
+                        </div>
+                    </div>
+                    <p style="margin-top:14px">${scoreLine}</p>
+                </section>
+
+                <section class="section" style="padding-top:8px">
+                    ${days.map((day, i) => {
+                        const date = weekDates[i];
+                        const t = calculateDayTotals(date);
+                        const has = t.calories > 0;
+                        return `
+                            <div class="row">
+                                <div>
+                                    <div class="rname">${day}<span class="sub" style="margin-left:8px">${fmtShort(date)}${date === todayISO ? ', today' : ''}</span></div>
+                                    <div class="rmeta">${has ? macroLine(t) : '<span class="mc">Nothing logged</span>'}</div>
+                                </div>
+                                <button class="iconbtn" onclick="openAddMealSheet('${date}')" aria-label="Add a meal to ${day} ${fmtShort(date)}">${icon('plus')}</button>
+                            </div>`;
+                    }).join('')}
+                </section>
             `;
+        }
+
+        // Shared entry fields (ids: <prefix>Name, <prefix>Protein, <prefix>Carbs, <prefix>Fats, <prefix>Calories)
+        function renderEntryFields(p) {
+            return `
+                <label class="field"><span>Food name</span>
+                    <input class="in" type="text" id="${p}Name" placeholder="e.g. Chicken and rice" autocomplete="off"></label>
+                <div class="grid2">
+                    <label class="field"><span><i class="dot" style="background:var(--protein)"></i>Protein (g)</span>
+                        <input class="in" type="number" inputmode="decimal" min="0" step="any" id="${p}Protein" placeholder="0"></label>
+                    <label class="field"><span><i class="dot" style="background:var(--carbs)"></i>Carbs (g)</span>
+                        <input class="in" type="number" inputmode="decimal" min="0" step="any" id="${p}Carbs" placeholder="0"></label>
+                    <label class="field"><span><i class="dot" style="background:var(--fats)"></i>Fats (g)</span>
+                        <input class="in" type="number" inputmode="decimal" min="0" step="any" id="${p}Fats" placeholder="0"></label>
+                    <label class="field"><span>Calories</span>
+                        <input class="in" type="number" inputmode="decimal" min="0" step="any" id="${p}Calories" placeholder="0"></label>
+                </div>`;
+        }
+
+        function readEntryFields(p, date) {
+            const name = document.getElementById(p + 'Name').value.trim();
+            if (!name) return null;
+            return {
+                name,
+                protein: parseFloat(document.getElementById(p + 'Protein').value) || 0,
+                carbs: parseFloat(document.getElementById(p + 'Carbs').value) || 0,
+                fats: parseFloat(document.getElementById(p + 'Fats').value) || 0,
+                calories: parseFloat(document.getElementById(p + 'Calories').value) || 0,
+                date: date || toISO(new Date()),
+                time: nowTime()
+            };
+        }
+
+        function clearEntryFields(p) {
+            ['Name', 'Protein', 'Carbs', 'Fats', 'Calories'].forEach(k => { document.getElementById(p + k).value = ''; });
         }
 
         function renderLogFood() {
             return `
-                <div class="p-6">
-                    <h2 class="text-xl font-bold mb-4">Log Food</h2>
+                <h1 class="h1" style="margin-bottom:16px">Log food</h1>
 
-                    <!-- Food Search -->
-                    <div class="mb-6">
-                        <label class="block text-sm font-medium mb-2">Search Foods</label>
-                        <div class="flex gap-2">
-                            <input type="text" id="foodSearchInput" value="${esc(state.foodSearch.query)}"
-                                placeholder="e.g. chicken breast, banana, Greek yogurt"
-                                class="flex-1 p-3 border rounded-lg"
-                                onkeydown="if(event.key==='Enter'){event.preventDefault();searchFoods();}">
-                            <button onclick="searchFoods()" class="bg-blue-600 text-white px-5 rounded-lg hover:bg-blue-700">Search</button>
-                        </div>
-                        <div id="foodSearchResults" class="mt-3">${renderFoodSearchResults()}</div>
-                    </div>
-
-                    <!-- Upload Photo Section -->
-                    <div class="mb-6">
-                        <label class="block text-sm font-medium mb-2">Upload Photo</label>
-                        <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-                            <input type="file" accept="image/*" onchange="handleImageUpload(event)" class="hidden" id="imageUpload">
-                            <label for="imageUpload" class="cursor-pointer">
-                                <svg width="48" height="48" class="mx-auto text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                                <p class="text-gray-600">Click to upload food photo or nutrition label</p>
-                            </label>
-                        </div>
-                    </div>
-
-                    <!-- Scan Barcode Section -->
-                    <div class="mb-6">
-                        <label class="block text-sm font-medium mb-2">Scan Barcode</label>
-                        <div class="border-2 border-dashed border-blue-300 rounded-lg p-6 text-center bg-blue-50">
-                            <input type="file" accept="image/*" capture="environment" onchange="handleBarcodeUpload(event)" class="hidden" id="barcodeUpload">
-                            <label for="barcodeUpload" class="cursor-pointer">
-                                <svg width="48" height="48" class="mx-auto text-blue-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <rect x="3" y="6" width="2" height="12"/><rect x="7" y="6" width="1" height="12"/><rect x="10" y="6" width="2" height="12"/>
-                                    <rect x="14" y="6" width="1" height="12"/><rect x="17" y="6" width="3" height="12"/>
-                                </svg>
-                                <p class="text-blue-700 font-medium">Click to scan product barcode</p>
-                                <p class="text-blue-600 text-sm mt-1">Takes a photo of the barcode for instant lookup</p>
-                            </label>
-                        </div>
-                    </div>
-
-                    <div class="border-t pt-6">
-                        <h3 class="font-semibold mb-4">Manual Entry</h3>
-                        <div class="space-y-3">
-                            <input type="text" id="foodName" placeholder="Food name" class="w-full p-2 border rounded">
-                            <div class="grid grid-cols-2 gap-3">
-                                <input type="number" id="foodProtein" placeholder="Protein (g)" class="p-2 border rounded">
-                                <input type="number" id="foodCarbs" placeholder="Carbs (g)" class="p-2 border rounded">
-                                <input type="number" id="foodFats" placeholder="Fats (g)" class="p-2 border rounded">
-                                <input type="number" id="foodCalories" placeholder="Calories" class="p-2 border rounded">
-                            </div>
-                            <button onclick="addFood()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700">Add Food</button>
-                        </div>
-                    </div>
+                <div class="searchrow">
+                    <input type="search" class="in" id="foodSearchInput" value="${esc(state.foodSearch.query)}"
+                        placeholder="Search foods, e.g. chicken breast" autocomplete="off" enterkeyhint="search"
+                        aria-label="Search foods"
+                        onkeydown="if(event.key==='Enter'){event.preventDefault();searchFoods();}">
+                    <button class="btn small" onclick="searchFoods()" aria-label="Search">${icon('search', 20)}</button>
                 </div>
+                <div id="foodSearchResults" style="margin-top:12px">${renderFoodSearchResults()}</div>
+
+                <section class="section" style="margin-top:20px">
+                    <h2 class="h2" style="margin-bottom:12px">Scan or snap</h2>
+                    <div class="tiles">
+                        <label class="tile">
+                            <input type="file" accept="image/*" onchange="handleImageUpload(event)" class="hidden" id="imageUpload">
+                            ${icon('camera', 26)}<span>Food photo or label</span>
+                        </label>
+                        <label class="tile">
+                            <input type="file" accept="image/*" capture="environment" onchange="handleBarcodeUpload(event)" class="hidden" id="barcodeUpload">
+                            ${icon('barcode', 26)}<span>Barcode</span>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="section">
+                    <h2 class="h2" style="margin-bottom:12px">Details</h2>
+                    ${renderEntryFields('food')}
+                    <button class="btn" onclick="addFood()">Log food</button>
+                </section>
             `;
         }
 
+        function dayLabel(iso) {
+            const y = new Date(); y.setDate(y.getDate() - 1);
+            if (iso === toISO(new Date())) return 'Today';
+            if (iso === toISO(y)) return 'Yesterday';
+            return fmtLong(iso);
+        }
+
         function renderHistory() {
+            if (state.foodEntries.length === 0) {
+                return `
+                    <h1 class="h1" style="margin-bottom:16px">History</h1>
+                    <div class="empty"><p>No meals yet. Everything you log shows up here, newest first.</p>
+                    <button class="btn" onclick="switchTab('log')">Log food</button></div>`;
+            }
+            const groups = [];
+            state.foodEntries.forEach(e => {
+                let g = groups[groups.length - 1];
+                if (!g || g.date !== e.date) { g = { date: e.date, items: [] }; groups.push(g); }
+                g.items.push(e);
+            });
             return `
-                <div class="p-6">
-                    <h2 class="text-xl font-bold mb-4">Food History</h2>
-                    ${state.foodEntries.length === 0 ?
-                        '<p class="text-gray-500 text-center py-8">No entries yet</p>' :
-                        state.foodEntries.map(e => `
-                            <div class="bg-gray-50 rounded-lg p-4 mb-4">
-                                <div class="flex justify-between items-start mb-2">
-                                    <div>
-                                        <div class="font-semibold">${esc(e.name)}</div>
-                                        <div class="text-sm text-gray-600">${fmtLong(e.date)}${e.time ? ' at ' + esc(e.time) : ''}</div>
-                                    </div>
-                                    <button onclick="deleteEntry(${Number(e.id)})" class="text-red-500 hover:text-red-700">
-                                        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                                    </button>
+                <h1 class="h1">History</h1>
+                ${groups.map(g => {
+                    const cal = Math.round(g.items.reduce((a, e) => a + e.calories, 0));
+                    return `
+                        <div class="gh"><span>${dayLabel(g.date)}</span><small>${fmt(cal)} cal</small></div>
+                        ${g.items.map(e => `
+                            <div class="row">
+                                <div style="min-width:0">
+                                    <div class="rname">${esc(e.name)}</div>
+                                    <div class="rmeta">${macroLine(e)}${e.time ? `<span class="mc">${esc(e.time)}</span>` : ''}</div>
                                 </div>
-                                <div class="grid grid-cols-4 gap-2 text-sm">
-                                    <div class="bg-blue-100 rounded p-2 text-center">
-                                        <div class="font-semibold">${e.protein}g</div>
-                                        <div class="text-xs text-gray-600">Protein</div>
-                                    </div>
-                                    <div class="bg-orange-100 rounded p-2 text-center">
-                                        <div class="font-semibold">${e.carbs}g</div>
-                                        <div class="text-xs text-gray-600">Carbs</div>
-                                    </div>
-                                    <div class="bg-green-100 rounded p-2 text-center">
-                                        <div class="font-semibold">${e.fats}g</div>
-                                        <div class="text-xs text-gray-600">Fats</div>
-                                    </div>
-                                    <div class="bg-gray-200 rounded p-2 text-center">
-                                        <div class="font-semibold">${e.calories}</div>
-                                        <div class="text-xs text-gray-600">Cal</div>
-                                    </div>
-                                </div>
-                            </div>
-                        `).join('')
-                    }
-                </div>
+                                <button class="iconbtn" onclick="deleteEntry(${Number(e.id)})" aria-label="Delete ${esc(e.name)}">${icon('trash', 20)}</button>
+                            </div>`).join('')}`;
+                }).join('')}
             `;
+        }
+
+        function chatHTML() {
+            if (state.chatMessages.length === 0) {
+                return `
+                    <div class="chat-empty">
+                        <h2 class="h2">Ask Abbs about today's food</h2>
+                        <p class="sub">Abbs sees your goals and what you have logged.</p>
+                        <div class="qchips">
+                            <button class="qchip" onclick="sendChat('Hi')">Hi</button>
+                            <button class="qchip" onclick="sendChat('What should I eat next?')">What should I eat next?</button>
+                            <button class="qchip" onclick="sendChat('How is my week going?')">How is my week going?</button>
+                        </div>
+                    </div>`;
+            }
+            return state.chatMessages.map(m => `
+                <div class="bubble ${m.role === 'user' ? 'user' : 'coach'}${m.content === 'Thinking...' ? ' wait' : ''}">${esc(m.content)}</div>
+            `).join('');
         }
 
         function renderCoach() {
             return `
-                <div class="flex flex-col h-[calc(100vh-180px)]">
-                    <div class="p-6 border-b">
-                        <h2 class="text-xl font-bold">AI Nutrition Coach</h2>
-                        <p class="text-sm text-gray-600">Ask me anything about nutrition, meal ideas, or your progress!</p>
-                    </div>
-                    <div class="flex-1 overflow-y-auto p-6 space-y-4" id="chatMessages">
-                        ${state.chatMessages.length === 0 ? `
-                            <div class="text-center text-gray-500 py-8">
-                                <svg width="48" height="48" class="mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                                <p>Start a conversation with your AI nutrition coach!</p>
-                            </div>
-                        ` : state.chatMessages.map(m => `
-                            <div class="flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}">
-                                <div class="max-w-[80%] rounded-lg p-3 ${m.role === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-100'}">
-                                    ${esc(m.content).replace(/\n/g, '<br>')}
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <div class="p-4 border-t">
-                        <div class="flex gap-2">
-                            <input type="text" id="chatInput" placeholder="Ask about nutrition..." class="flex-1 p-3 border rounded-lg" onkeypress="if(event.key==='Enter') sendChat()">
-                            <button onclick="sendChat()" class="bg-blue-600 text-white px-6 rounded-lg hover:bg-blue-700">
-                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                            </button>
-                        </div>
-                    </div>
+                <div class="msgs" id="chatMessages" aria-live="polite">${chatHTML()}</div>
+                <div class="composer">
+                    <input type="text" class="in" id="chatInput" placeholder="Message Abbs" autocomplete="off" enterkeyhint="send"
+                        aria-label="Message Abbs" onkeydown="if(event.key==='Enter'){event.preventDefault();sendChat();}">
+                    <button class="send" onclick="sendChat()" aria-label="Send">${icon('send', 20)}</button>
                 </div>
             `;
         }
 
-        // ---------- Actions ----------
-        function openGoalModal() {
-            document.getElementById('goalProtein').value = state.goals.protein;
-            document.getElementById('goalCarbs').value = state.goals.carbs;
-            document.getElementById('goalFats').value = state.goals.fats;
-            document.getElementById('goalCalories').value = state.goals.calories;
-            document.getElementById('goalModal').classList.remove('hidden');
+        function scrollChatToBottom() {
+            const el = document.getElementById('chatMessages');
+            if (el) el.scrollTop = el.scrollHeight;
         }
 
-        function closeGoalModal() {
-            document.getElementById('goalModal').classList.add('hidden');
+        function updateChatUI() {
+            const el = document.getElementById('chatMessages');
+            if (!el) return;
+            el.innerHTML = chatHTML();
+            el.scrollTop = el.scrollHeight;
+        }
+
+        // ---------- Actions ----------
+        function openGoalSheet() {
+            const g = state.goals;
+            openSheet('Daily goals', `
+                <h2 class="h2" style="margin-bottom:16px">Daily goals</h2>
+                <div class="grid2">
+                    <label class="field"><span><i class="dot" style="background:var(--protein)"></i>Protein (g)</span>
+                        <input class="in" type="number" inputmode="numeric" id="goalProtein" value="${num(g.protein)}"></label>
+                    <label class="field"><span><i class="dot" style="background:var(--carbs)"></i>Carbs (g)</span>
+                        <input class="in" type="number" inputmode="numeric" id="goalCarbs" value="${num(g.carbs)}"></label>
+                    <label class="field"><span><i class="dot" style="background:var(--fats)"></i>Fats (g)</span>
+                        <input class="in" type="number" inputmode="numeric" id="goalFats" value="${num(g.fats)}"></label>
+                    <label class="field"><span>Calories</span>
+                        <input class="in" type="number" inputmode="numeric" id="goalCalories" value="${num(g.calories)}"></label>
+                </div>
+                <div class="grid2" style="margin-top:8px">
+                    <button class="btn secondary" onclick="closeSheet()">Cancel</button>
+                    <button class="btn" onclick="saveGoals()">Save goals</button>
+                </div>
+            `);
         }
 
         async function saveGoals() {
@@ -900,13 +1177,14 @@
 
             if (error) {
                 console.error('Failed to save goals:', error);
-                alert('Could not save goals: ' + error.message);
+                toast('Could not save goals: ' + error.message, 'error');
                 return;
             }
 
             state.goals = goals;
-            closeGoalModal();
+            closeSheet();
             renderActiveTab();
+            toast('Goals saved');
         }
 
         async function insertEntry(entry) {
@@ -921,34 +1199,48 @@
         }
 
         async function addFood() {
-            const name = document.getElementById('foodName').value.trim();
-            if (!name) return;
-
-            const entry = {
-                name,
-                protein: parseFloat(document.getElementById('foodProtein').value) || 0,
-                carbs: parseFloat(document.getElementById('foodCarbs').value) || 0,
-                fats: parseFloat(document.getElementById('foodFats').value) || 0,
-                calories: parseFloat(document.getElementById('foodCalories').value) || 0,
-                date: toISO(new Date()),
-                time: nowTime()
-            };
+            const entry = readEntryFields('food');
+            if (!entry) { toast('Add a food name first', 'error'); return; }
 
             try {
                 await insertEntry(entry);
             } catch (error) {
                 console.error('Failed to save entry:', error);
-                alert('Could not save this entry: ' + (error.message || error));
+                toast('Could not save this entry: ' + (error.message || error), 'error');
                 return;
             }
 
-            document.getElementById('foodName').value = '';
-            document.getElementById('foodProtein').value = '';
-            document.getElementById('foodCarbs').value = '';
-            document.getElementById('foodFats').value = '';
-            document.getElementById('foodCalories').value = '';
+            clearEntryFields('food');
             updateFoodSearchUI();
-            alert('Food added successfully!');
+            toast(`Logged ${entry.name}`);
+        }
+
+        function openAddMealSheet(date) {
+            openSheet('Add a meal', `
+                <h2 class="h2" style="margin-bottom:16px">Add a meal to ${fmtLong(date)}</h2>
+                ${renderEntryFields('sheet')}
+                <div class="grid2">
+                    <button class="btn secondary" onclick="closeSheet()">Cancel</button>
+                    <button class="btn" onclick="addToDate('${date}')">Add meal</button>
+                </div>
+            `);
+        }
+
+        async function addToDate(date) {
+            const entry = readEntryFields('sheet', date);
+            if (!entry) { toast('Add a food name first', 'error'); return; }
+
+            try {
+                await insertEntry(entry);
+            } catch (error) {
+                console.error('Failed to save entry:', error);
+                toast('Could not save this entry: ' + (error.message || error), 'error');
+                return;
+            }
+
+            closeSheet();
+            renderActiveTab();
+            toast(`Added ${entry.name}`);
         }
 
         async function deleteEntry(id) {
@@ -957,76 +1249,19 @@
             const { error } = await sb.from('food_entries').delete().eq('id', id);
             if (error) {
                 console.error('Failed to delete entry:', error);
-                alert('Could not delete this entry: ' + error.message);
+                toast('Could not delete this entry: ' + error.message, 'error');
                 return;
             }
             state.foodEntries = state.foodEntries.filter(e => Number(e.id) !== Number(id));
             renderActiveTab();
-        }
-
-        function changeWeek(value) {
-            state.selectedWeek = parseInt(value);
-            renderActiveTab();
-        }
-
-        function startAddingToDate(date) {
-            state.addingToDate = date;
-            const form = document.getElementById(`addForm-${date}`);
-            form.classList.remove('hidden');
-            form.innerHTML = `
-                <div class="bg-green-50 rounded p-3 space-y-2">
-                    <div class="font-medium text-sm text-green-700 mb-2">Add meal to ${fmtShort(date)}</div>
-                    <input type="text" id="newName-${date}" placeholder="Food name" class="w-full p-2 border rounded text-sm">
-                    <div class="grid grid-cols-4 gap-2">
-                        <input type="number" id="newP-${date}" placeholder="Protein" class="p-2 border rounded text-sm">
-                        <input type="number" id="newC-${date}" placeholder="Carbs" class="p-2 border rounded text-sm">
-                        <input type="number" id="newF-${date}" placeholder="Fats" class="p-2 border rounded text-sm">
-                        <input type="number" id="newCal-${date}" placeholder="Calories" class="p-2 border rounded text-sm">
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="addToDate('${date}')" class="flex-1 bg-green-600 text-white py-2 rounded text-sm">Add Meal</button>
-                        <button onclick="cancelAdd('${date}')" class="flex-1 bg-gray-300 text-gray-700 py-2 rounded text-sm">Cancel</button>
-                    </div>
-                </div>
-            `;
-        }
-
-        async function addToDate(date) {
-            const name = document.getElementById(`newName-${date}`).value.trim();
-            if (!name) return;
-
-            const entry = {
-                name,
-                protein: parseFloat(document.getElementById(`newP-${date}`).value) || 0,
-                carbs: parseFloat(document.getElementById(`newC-${date}`).value) || 0,
-                fats: parseFloat(document.getElementById(`newF-${date}`).value) || 0,
-                calories: parseFloat(document.getElementById(`newCal-${date}`).value) || 0,
-                date,
-                time: nowTime()
-            };
-
-            try {
-                await insertEntry(entry);
-            } catch (error) {
-                console.error('Failed to save entry:', error);
-                alert('Could not save this entry: ' + (error.message || error));
-                return;
-            }
-
-            state.addingToDate = null;
-            renderActiveTab();
-        }
-
-        function cancelAdd(date) {
-            state.addingToDate = null;
-            document.getElementById(`addForm-${date}`).classList.add('hidden');
+            toast('Entry deleted');
         }
 
         // ---------- Food search (Supabase Edge Function -> USDA FoodData Central) ----------
         const FOOD_SEARCH_ERRORS = {
             short: 'Type at least 2 characters to search.',
             rate_limited: 'Food search is busy right now. Please try again in a minute.',
-            bad_key: 'Food search is not set up correctly yet (check the USDA API key secret in Supabase).',
+            bad_key: 'Food search is not set up correctly yet. Check the USDA API key secret in Supabase.',
             network: "Couldn't reach the food database. Please try again.",
             upstream: "Couldn't reach the food database. Please try again."
         };
@@ -1039,10 +1274,6 @@
                 carbs: round1(food.per100g.carbs * f),
                 fats: round1(food.per100g.fats * f)
             };
-        }
-
-        function macroLine(m) {
-            return `${m.calories} cal &middot; P ${m.protein}g &middot; C ${m.carbs}g &middot; F ${m.fats}g`;
         }
 
         function getRecentFoods() {
@@ -1061,66 +1292,63 @@
             const fs = state.foodSearch;
 
             if (fs.loading) {
-                return '<p class="text-sm text-gray-500 py-2">Searching...</p>';
+                return '<p class="sub">Searching...</p>';
             }
 
             if (fs.selected) {
                 const f = fs.selected;
                 const m = portionMacros(f, fs.grams);
                 return `
-                    <div class="border rounded-lg p-4 bg-blue-50">
-                        <div class="font-semibold">${esc(f.name)}</div>
-                        ${f.brand ? `<div class="text-xs text-gray-600">${esc(f.brand)}</div>` : ''}
-                        <div class="flex flex-wrap items-center gap-2 mt-3">
-                            <label class="text-sm font-medium" for="foodGrams">Amount (g)</label>
-                            <input type="number" id="foodGrams" min="1" step="1" value="${num(fs.grams)}"
-                                oninput="updateFoodPortion()" class="w-24 p-2 border rounded">
-                            <button onclick="setFoodGrams(100)" class="text-xs px-2 py-1 border rounded bg-white hover:bg-gray-50">100 g</button>
-                            ${f.servingGrams ? `<button onclick="setFoodGrams(${num(f.servingGrams)})" class="text-xs px-2 py-1 border rounded bg-white hover:bg-gray-50">1 serving${f.servingText ? ' (' + esc(f.servingText) + ')' : ''} = ${num(f.servingGrams)} g</button>` : ''}
+                    <div class="picked">
+                        <div class="rname">${esc(f.name)}</div>
+                        ${f.brand ? `<div class="sub" style="margin-top:0">${esc(f.brand)}</div>` : ''}
+                        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px">
+                            <label for="foodGrams" style="font-weight:600;font-size:14px">Amount (g)</label>
+                            <input type="number" inputmode="decimal" id="foodGrams" min="1" step="1" value="${num(fs.grams)}"
+                                oninput="updateFoodPortion()" class="in" style="width:96px">
+                            <button class="pill" onclick="setFoodGrams(100)">100 g</button>
+                            ${f.servingGrams ? `<button class="pill" onclick="setFoodGrams(${num(f.servingGrams)})">1 serving${f.servingText ? ' (' + esc(f.servingText) + ')' : ''}, ${num(f.servingGrams)} g</button>` : ''}
                         </div>
-                        <div id="foodPortionMacros" class="mt-3 text-sm font-medium text-blue-700">${macroLine(m)}</div>
-                        <div class="flex gap-2 mt-3">
-                            <button onclick="applySelectedFood()" class="flex-1 bg-blue-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-700">Use this food</button>
-                            <button onclick="clearSelectedFood()" class="flex-1 border py-2 rounded-lg text-sm bg-white hover:bg-gray-50">Back to results</button>
+                        <div id="foodPortionMacros" style="margin-top:12px">${macroLine(m)}</div>
+                        <div class="grid2" style="margin-top:14px">
+                            <button class="btn" onclick="applySelectedFood()">Use this food</button>
+                            <button class="btn secondary" onclick="clearSelectedFood()">Back to results</button>
                         </div>
                     </div>`;
             }
 
             if (fs.error) {
-                return `<p class="text-sm text-red-600 py-2">${esc(FOOD_SEARCH_ERRORS[fs.error] || FOOD_SEARCH_ERRORS.network)}</p>`;
+                return `<div class="msg error" style="margin-top:0"><p>${esc(FOOD_SEARCH_ERRORS[fs.error] || FOOD_SEARCH_ERRORS.network)}</p></div>`;
             }
 
             if (fs.results !== null) {
                 if (fs.results.length === 0) {
-                    return `<p class="text-sm text-gray-500 py-2">No matches. Try a simpler term, like "chicken" instead of "grilled chicken sandwich".</p>
-                            <button onclick="clearFoodSearch()" class="text-xs text-blue-600 underline">Clear search</button>`;
+                    return `<p class="sub">No matches. Try a simpler term, like "chicken" instead of "grilled chicken sandwich".</p>
+                            <button class="link" style="padding-left:0" onclick="clearFoodSearch()">Clear search</button>`;
                 }
                 return `
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-xs text-gray-500">${fs.results.length} results &middot; values per 100 g</span>
-                        <button onclick="clearFoodSearch()" class="text-xs text-blue-600 underline">Clear search</button>
+                    <div class="between">
+                        <span class="sub" style="margin:0">${fs.results.length} results, values per 100 g</span>
+                        <button class="link" onclick="clearFoodSearch()">Clear</button>
                     </div>
-                    <div class="max-h-80 overflow-y-auto space-y-2">
+                    <div style="max-height:360px;overflow-y:auto">
                         ${fs.results.map((f, i) => `
-                            <button onclick="selectFood(${i})" class="w-full text-left bg-gray-50 hover:bg-blue-50 border rounded-lg p-3">
-                                <div class="font-medium text-sm">${esc(f.name)}</div>
-                                ${f.brand ? `<div class="text-xs text-gray-500">${esc(f.brand)}</div>` : ''}
-                                <div class="text-xs text-gray-600 mt-1">${macroLine(f.per100g)}</div>
-                            </button>
-                        `).join('')}
+                            <button class="result" onclick="selectFood(${i})">
+                                <div class="rname">${esc(f.name)}</div>
+                                ${f.brand ? `<div class="sub" style="margin:0">${esc(f.brand)}</div>` : ''}
+                                <div class="rmeta">${macroLine(f.per100g)}</div>
+                            </button>`).join('')}
                     </div>
-                    <p class="text-xs text-gray-400 mt-2">Food data: USDA FoodData Central</p>`;
+                    <p class="sub">Food data: USDA FoodData Central</p>`;
             }
 
             // No search yet: offer recently logged foods for one-tap re-logging
             const recent = getRecentFoods();
             if (recent.length === 0) return '';
             return `
-                <div class="text-xs text-gray-500 mb-2">Recent foods</div>
-                <div class="flex flex-wrap gap-2">
-                    ${recent.map((e, i) => `
-                        <button onclick="useRecentFood(${i})" class="text-sm px-3 py-1 border rounded-full bg-gray-50 hover:bg-blue-50">${esc(e.name)}</button>
-                    `).join('')}
+                <div class="sub" style="margin:0 0 8px">Recent foods</div>
+                <div class="qchips" style="margin-top:0">
+                    ${recent.map((e, i) => `<button class="qchip" onclick="useRecentFood(${i})">${esc(e.name)}</button>`).join('')}
                 </div>`;
         }
 
@@ -1210,8 +1438,7 @@
             document.getElementById('foodCarbs').value = m.carbs;
             document.getElementById('foodFats').value = m.fats;
             document.getElementById('foodCalories').value = m.calories;
-            const nameInput = document.getElementById('foodName');
-            nameInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            document.getElementById('foodName').scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
         function applySelectedFood() {
@@ -1222,6 +1449,7 @@
             fillFoodForm(`${f.name}${f.brand ? ' (' + f.brand + ')' : ''} - ${grams} g`, portionMacros(f, grams));
             fs.selected = null;
             updateFoodSearchUI();
+            toast('Filled in. Check the details, then log it.');
         }
 
         function useRecentFood(i) {
@@ -1231,141 +1459,93 @@
         }
 
         // ---------- AI features (still served by n8n) ----------
-        async function handleBarcodeUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const loadingMsg = document.createElement('div');
-            loadingMsg.id = 'barcodeLoading';
-            loadingMsg.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl p-6 z-50';
-            loadingMsg.innerHTML = `
-                <div class="text-center">
-                    <div class="text-4xl mb-2">📊</div>
-                    <div class="font-semibold">Scanning barcode...</div>
-                    <div class="text-sm text-gray-600">Looking up product</div>
-                </div>
-            `;
-            document.body.appendChild(loadingMsg);
-
-            try {
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    const base64Image = e.target.result.split(',')[1];
-
-                    try {
-                        const response = await fetch(N8N_BASE + '/scan', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ image: base64Image, mimeType: file.type })
-                        });
-
-                        const data = await response.json();
-                        document.getElementById('barcodeLoading').remove();
-
-                        if (data.name) document.getElementById('foodName').value = data.name;
-                        if (data.protein !== undefined) document.getElementById('foodProtein').value = data.protein;
-                        if (data.carbs !== undefined) document.getElementById('foodCarbs').value = data.carbs;
-                        if (data.fats !== undefined) document.getElementById('foodFats').value = data.fats;
-                        if (data.calories !== undefined) document.getElementById('foodCalories').value = data.calories;
-
-                        alert('Barcode scanned successfully! Review the details and click "Add Food".');
-
-                    } catch (error) {
-                        console.error('Error scanning barcode:', error);
-                        const l = document.getElementById('barcodeLoading');
-                        if (l) l.remove();
-                        alert('Error scanning barcode. Please try again or enter manually.');
-                    }
+        // Phone photos are large; shrink them before upload so scans are faster and cheaper.
+        function resizeImage(file, maxDim = 1600) {
+            return new Promise((resolve) => {
+                const readRaw = () => {
+                    const r = new FileReader();
+                    r.onload = () => resolve({ base64: String(r.result).split(',')[1], mime: file.type });
+                    r.onerror = () => resolve(null);
+                    r.readAsDataURL(file);
                 };
-
-                reader.readAsDataURL(file);
-
-            } catch (error) {
-                console.error('Error reading file:', error);
-                const loading = document.getElementById('barcodeLoading');
-                if (loading) loading.remove();
-                alert('Error reading barcode image. Please try again.');
-            }
-
-            event.target.value = '';
+                const img = new Image();
+                const url = URL.createObjectURL(file);
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                    try {
+                        const s = Math.min(1, maxDim / Math.max(img.width, img.height));
+                        const c = document.createElement('canvas');
+                        c.width = Math.round(img.width * s);
+                        c.height = Math.round(img.height * s);
+                        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+                        resolve({ base64: c.toDataURL('image/jpeg', 0.85).split(',')[1], mime: 'image/jpeg' });
+                    } catch { readRaw(); }
+                };
+                img.onerror = () => { URL.revokeObjectURL(url); readRaw(); };
+                img.src = url;
+            });
         }
 
-        async function handleImageUpload(event) {
+        async function analyzeImage(event, endpoint, busyText, failText) {
             const file = event.target.files[0];
+            event.target.value = '';
             if (!file) return;
 
-            const loadingMsg = document.createElement('div');
-            loadingMsg.id = 'imageLoading';
-            loadingMsg.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl p-6 z-50';
-            loadingMsg.innerHTML = `
-                <div class="text-center">
-                    <div class="animate-bounce mb-2">📸</div>
-                    <div class="font-semibold">Analyzing image...</div>
-                    <div class="text-sm text-gray-600">Please wait</div>
-                </div>
-            `;
-            document.body.appendChild(loadingMsg);
-
+            showBusy(busyText);
             try {
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    const base64Image = e.target.result.split(',')[1];
+                const img = await resizeImage(file);
+                if (!img) throw new Error('read failed');
 
-                    try {
-                        const response = await fetch(N8N_BASE + '/photo', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ image: base64Image, mimeType: file.type })
-                        });
+                const response = await fetch(N8N_BASE + endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: img.base64, mimeType: img.mime })
+                });
+                const data = await response.json();
 
-                        const data = await response.json();
-                        document.getElementById('imageLoading').remove();
+                if (data.name) document.getElementById('foodName').value = data.name;
+                if (data.protein !== undefined) document.getElementById('foodProtein').value = data.protein;
+                if (data.carbs !== undefined) document.getElementById('foodCarbs').value = data.carbs;
+                if (data.fats !== undefined) document.getElementById('foodFats').value = data.fats;
+                if (data.calories !== undefined) document.getElementById('foodCalories').value = data.calories;
 
-                        if (data.name) document.getElementById('foodName').value = data.name;
-                        if (data.protein !== undefined) document.getElementById('foodProtein').value = data.protein;
-                        if (data.carbs !== undefined) document.getElementById('foodCarbs').value = data.carbs;
-                        if (data.fats !== undefined) document.getElementById('foodFats').value = data.fats;
-                        if (data.calories !== undefined) document.getElementById('foodCalories').value = data.calories;
-
-                        alert('Image analyzed successfully! Review the details and click "Add Food".');
-
-                    } catch (error) {
-                        console.error('Error analyzing image:', error);
-                        const l = document.getElementById('imageLoading');
-                        if (l) l.remove();
-                        alert('Error analyzing image. Please try again or enter manually.');
-                    }
-                };
-
-                reader.readAsDataURL(file);
-
+                document.getElementById('foodName').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                toast('Filled in. Check the details, then log it.');
             } catch (error) {
-                console.error('Error reading file:', error);
-                const loading = document.getElementById('imageLoading');
-                if (loading) loading.remove();
-                alert('Error reading image file. Please try again.');
+                console.error(failText, error);
+                toast(failText, 'error');
+            } finally {
+                hideBusy();
             }
-
-            event.target.value = '';
         }
 
-        async function sendChat() {
+        function handleBarcodeUpload(event) {
+            return analyzeImage(event, '/scan', 'Scanning barcode...', 'Could not read that barcode. Try again or enter it manually.');
+        }
+
+        function handleImageUpload(event) {
+            return analyzeImage(event, '/photo', 'Analyzing photo...', 'Could not analyze that photo. Try again or enter it manually.');
+        }
+
+        async function sendChat(preset) {
             const input = document.getElementById('chatInput');
-            const message = input.value.trim();
-            if (!message) return;
+            const message = (typeof preset === 'string' ? preset : (input ? input.value : '')).trim();
+            if (!message || chatBusy) return;
+            chatBusy = true;
+            if (input) input.value = '';
 
             state.chatMessages.push({ role: 'user', content: message });
-            input.value = '';
-            renderActiveTab();
-
             state.chatMessages.push({ role: 'assistant', content: 'Thinking...' });
-            renderActiveTab();
+            updateChatUI();
 
             let replyText = null;
             try {
                 const totals = calculateTotals();
                 const context = `Current daily progress: ${totals.protein}g/${state.goals.protein}g protein, ${totals.carbs}g/${state.goals.carbs}g carbs, ${totals.fats}g/${state.goals.fats}g fats, ${totals.calories}/${state.goals.calories} calories.`;
 
+                // Extra context so the coach can act as an accountability partner
+                const week = calculateWeeklyScore(0);
+                const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
                 const response = await fetch(N8N_BASE + '/ai-coach', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1375,6 +1555,11 @@
                         context: context,
                         goals: state.goals,
                         currentProgress: totals,
+                        name: firstName(),
+                        localTime: new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+                        meals: getTodayEntries().map(e => ({ name: e.name, protein: e.protein, carbs: e.carbs, fats: e.fats, calories: e.calories, time: e.time })),
+                        week: { daysLogged: week.daysTracked, daysSoFar: new Date().getDay() + 1, score: week.score, streak: calcStreak() },
+                        yesterday: calculateDayTotals(toISO(yesterday)),
                         conversationHistory: state.chatMessages.slice(0, -2).filter(m => m.content !== 'Thinking...').slice(-10)
                     })
                 });
@@ -1406,14 +1591,8 @@
                 if (error) console.error('Failed to save chat:', error);
             }
 
-            renderActiveTab();
-
-            setTimeout(() => {
-                const chatContainer = document.getElementById('chatMessages');
-                if (chatContainer) {
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
-                }
-            }, 100);
+            chatBusy = false;
+            updateChatUI();
         }
     </script>
 </body>
