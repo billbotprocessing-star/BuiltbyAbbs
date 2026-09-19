@@ -2,9 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="BuiltbyAbbs">
     <title>BuiltbyAbbs - Macro Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         .tab-button { transition: all 0.2s; }
         .tab-button.active { border-bottom: 2px solid #2563eb; color: #2563eb; }
@@ -30,20 +34,62 @@
             isAuthenticated: false
         };
 
+        // Paste from Supabase → Project Settings → API
+        const SUPABASE_URL = 'https://dnxovaywkdvpfdtlqgvy.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRueG92YXl3a2R2cGZkdGxxZ3Z5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4MzY5ODksImV4cCI6MjEwNTQxMjk4OX0.cQE2zfdtkMPiyYc4zyf1OLttjyEPpF_oocp4Fni74iw';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function isoDate(d = new Date()) {
+            const dt = d instanceof Date ? d : new Date(d);
+            const y = dt.getFullYear();
+            const m = String(dt.getMonth() + 1).padStart(2, '0');
+            const day = String(dt.getDate()).padStart(2, '0');
+            return y + '-' + m + '-' + day;
+        }
+
+        function applyProfile(row) {
+            if (!row) return;
+            if (row.goals) state.goals = row.goals;
+            if (Array.isArray(row.food_entries)) state.foodEntries = row.food_entries;
+            if (Array.isArray(row.chat_messages)) state.chatMessages = row.chat_messages;
+        }
+
+        async function sessionToState(session) {
+            if (!session || !session.user) {
+                state.user = null;
+                state.isAuthenticated = false;
+                return;
+            }
+            const u = session.user;
+            state.user = {
+                userId: u.id,
+                email: u.email,
+                name: (u.user_metadata && u.user_metadata.name) || (u.email || '').split('@')[0]
+            };
+            state.isAuthenticated = true;
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             checkAuth();
         });
 
-        // Authentication
-        function checkAuth() {
-            const savedUser = localStorage.getItem('user');
-            const savedToken = localStorage.getItem('authToken');
-            
-            if (savedUser && savedToken) {
-                state.user = JSON.parse(savedUser);
-                state.isAuthenticated = true;
-                loadData().then(() => renderApp());
+                // Authentication
+        async function checkAuth() {
+            if (!SUPABASE_URL.startsWith('http')) {
+                renderLogin();
+                const err = document.getElementById('authError');
+                if (err) {
+                    err.classList.remove('hidden');
+                    err.querySelector('p').textContent = 'Supabase keys are not set yet. Add SUPABASE_URL and SUPABASE_ANON_KEY in index.html.';
+                }
+                return;
+            }
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                await sessionToState(session);
+                await loadData();
+                renderApp();
             } else {
                 renderLogin();
             }
@@ -200,35 +246,12 @@
             loadingDiv.classList.remove('hidden');
             
             try {
-                const response = await fetch('https://billbotprocessing.app.n8n.cloud/webhook/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
-                });
-                
-                const data = await response.json();
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
                 loadingDiv.classList.add('hidden');
-                
-                if (response.ok && data.success) {
-                    // Use userId returned by server (consistent for returning users)
-                    state.user = {
-                        email: data.email || email,
-                        name: data.name || email.split('@')[0],
-                        userId: data.userId
-                    };
-                    state.isAuthenticated = true;
-                    
-                    localStorage.setItem('user', JSON.stringify(state.user));
-                    localStorage.setItem('authToken', data.token || 'demo-token');
-                    
-                    await loadData();
-                    renderApp();
-                    showUserIdBanner(state.user.userId, false);
-                    
-                } else {
-                    throw new Error(data.message || 'Invalid credentials');
-                }
-                
+                if (error) throw error;
+                await sessionToState(data.session);
+                await loadData();
+                renderApp();
             } catch (error) {
                 console.error('Login error:', error);
                 loadingDiv.classList.add('hidden');
@@ -263,35 +286,26 @@
             loadingDiv.classList.remove('hidden');
             
             try {
-                const response = await fetch('https://billbotprocessing.app.n8n.cloud/webhook/signup', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, email, password })
+                const { data, error } = await supabase.auth.signUp({
+                    email,
+                    password,
+                    options: { data: { name } }
                 });
-                
-                const data = await response.json();
                 loadingDiv.classList.add('hidden');
-                
-                if (response.ok && data.success) {
-                    // Store userId returned by server (permanent for this account)
-                    state.user = {
-                        email: data.email || email,
-                        name: data.name || name,
-                        userId: data.userId
-                    };
-                    state.isAuthenticated = true;
-                    
-                    localStorage.setItem('user', JSON.stringify(state.user));
-                    localStorage.setItem('authToken', data.token || 'demo-token');
-                    
-                    await loadData();
-                    renderApp();
-                    showUserIdBanner(state.user.userId, true);
-                    
-                } else {
-                    throw new Error(data.message || 'Signup failed. Please try again.');
+                if (error) throw error;
+                if (!data.session) {
+                    errorDiv.classList.remove('hidden');
+                    errorDiv.querySelector('p').textContent = 'Account created. Confirm the email (or disable Confirm email in Supabase), then log in.';
+                    return;
                 }
-                
+                await sessionToState(data.session);
+                await supabase.from('profiles').upsert({
+                    id: data.user.id,
+                    email,
+                    name
+                });
+                await loadData();
+                renderApp();
             } catch (error) {
                 console.error('Signup error:', error);
                 loadingDiv.classList.add('hidden');
@@ -319,12 +333,13 @@
             document.body.appendChild(banner);
         }
 
-        function handleLogout() {
-            if (confirm('Are you sure you want to logout?')) {
+        async function handleLogout() {
+            if (confirm('Log out? Your food log stays in Supabase and will come back when you sign in on any phone.')) {
+                await supabase.auth.signOut();
                 state.user = null;
                 state.isAuthenticated = false;
-                localStorage.removeItem('user');
-                localStorage.removeItem('authToken');
+                state.foodEntries = [];
+                state.chatMessages = [];
                 renderLogin();
             }
         }
@@ -409,70 +424,44 @@
             switchTab('dashboard');
         }
 
-        // Data persistence - Server only (no localStorage backup)
         async function loadData() {
             if (!state.user) return;
-            
-            try {
-                const response = await fetch('https://billbotprocessing.app.n8n.cloud/webhook/load', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        userId: state.user.userId
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    // Accept data regardless of a success flag — just check fields exist
-                    if (data.userId && data.userId !== state.user.userId) {
-                        console.warn('userId mismatch — data may belong to another user');
-                    }
-                    if (data.goals) state.goals = data.goals;
-                    if (data.foodEntries) state.foodEntries = data.foodEntries;
-                    if (data.chatMessages) state.chatMessages = data.chatMessages;
-                    console.log('User data loaded successfully for:', state.user.userId);
-                } else {
-                    console.log('No existing data found for user, starting fresh');
-                }
-            } catch (error) {
-                console.error('Failed to load data from server:', error);
-                alert('Unable to load your data. Please check your internet connection.');
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('goals, food_entries, chat_messages, name, email')
+                .eq('id', state.user.userId)
+                .maybeSingle();
+            if (error) {
+                console.error('Supabase load error:', error);
+                alert('Could not load your log from Supabase.');
+                return;
             }
+            if (!data) {
+                await supabase.from('profiles').insert({
+                    id: state.user.userId,
+                    email: state.user.email,
+                    name: state.user.name
+                });
+                return;
+            }
+            applyProfile(data);
+            if (data.name) state.user.name = data.name;
         }
 
         async function saveData() {
             if (!state.user) return;
-            
-            try {
-                const response = await fetch('https://billbotprocessing.app.n8n.cloud/webhook/history', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        userId: state.user.userId,
-                        action: 'save',
-                        data: {
-                            goals: state.goals,
-                            foodEntries: state.foodEntries,
-                            chatMessages: state.chatMessages
-                        }
-                    })
-                });
-                
-                const result = await response.json();
-                
-                if (!response.ok || !result.success) {
-                    console.error('Failed to save data to server');
-                    // Optionally show a notification to user
-                }
-            } catch (error) {
-                console.error('Failed to save data to server:', error);
-                // Optionally show a notification that data wasn't saved
+            const { error } = await supabase.from('profiles').upsert({
+                id: state.user.userId,
+                email: state.user.email,
+                name: state.user.name,
+                goals: state.goals,
+                food_entries: state.foodEntries,
+                chat_messages: state.chatMessages,
+                updated_at: new Date().toISOString()
+            });
+            if (error) {
+                console.error('Supabase save error:', error);
+                alert('Could not save to Supabase. Check your connection and try again.');
             }
         }
 
@@ -498,7 +487,7 @@
 
         // Calculations
         function getTodayEntries() {
-            const today = new Date().toLocaleDateString();
+            const today = isoDate();
             return state.foodEntries.filter(e => e.date === today);
         }
 
@@ -520,7 +509,7 @@
             for (let i = 0; i < 7; i++) {
                 const date = new Date(startOfWeek);
                 date.setDate(startOfWeek.getDate() + i);
-                dates.push(date.toLocaleDateString());
+                dates.push(isoDate(date));
             }
             return dates;
         }
@@ -844,7 +833,7 @@
                 carbs: parseFloat(document.getElementById('foodCarbs').value) || 0,
                 fats: parseFloat(document.getElementById('foodFats').value) || 0,
                 calories: parseFloat(document.getElementById('foodCalories').value) || 0,
-                date: new Date().toLocaleDateString(),
+                date: isoDate(),
                 time: new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
             };
             
