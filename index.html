@@ -154,6 +154,7 @@
         .btn:active { transform: scale(.98); }
         .btn:disabled { opacity: .5; }
         .btn.secondary { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+        a.link { display: inline-flex; align-items: center; justify-content: center; color: var(--ink); }
         .btn.danger { background: var(--over); color: var(--on-over); }
         .steps { margin: 12px 0 16px; padding-left: 20px; }
         .steps li { margin-bottom: 8px; }
@@ -567,6 +568,9 @@
 
                     <div id="authError" class="msg error hidden"><p></p></div>
                     <div id="authInfo" class="msg info hidden"><p></p></div>
+                    <p class="sub" style="margin-top:24px;text-align:center">
+                        <a href="privacy.html" target="_blank" rel="noopener" style="color:inherit">Privacy policy</a>
+                    </p>
                 </div></div>
             `;
         }
@@ -698,7 +702,10 @@
                 ${isStandalone() ? '' : '<button class="btn secondary" style="margin-bottom:10px" onclick="installApp()">Install app</button>'}
                 ${state.user.aiConsent ? '<button class="btn secondary" style="margin-bottom:10px" onclick="withdrawAIConsent()">Turn off AI features</button>' : ''}
                 <button class="btn" onclick="handleLogout()">Log out</button>
-                <button class="link" style="width:100%;margin-top:6px;color:var(--over)" onclick="openDeleteSheet()">Delete account</button>
+                <div style="display:flex;justify-content:space-between;margin-top:6px">
+                    <a class="link" href="privacy.html" target="_blank" rel="noopener">Privacy policy</a>
+                    <button class="link" style="color:var(--over)" onclick="openDeleteSheet()">Delete account</button>
+                </div>
             `);
         }
 
@@ -747,7 +754,7 @@
                         <li>Your first name, calorie and macro goals, the meals you have logged, and your weekly stats</li>
                         <li>Photos you choose to scan</li>
                     </ul>
-                    <p class="sub">It is used only to write replies and read food photos. Nothing is sent unless you allow it, and you can turn it off any time in the account menu.</p>
+                    <p class="sub">It is used only to write replies and read food photos. Nothing is sent unless you allow it, and you can turn it off any time in the account menu. <a href="privacy.html" target="_blank" rel="noopener" style="color:inherit">Read the privacy policy</a>.</p>
                     <div class="grid2" style="margin-top:16px">
                         <button class="btn secondary" onclick="answerConsent(false)">Not now</button>
                         <button class="btn" onclick="answerConsent(true)">Allow</button>
