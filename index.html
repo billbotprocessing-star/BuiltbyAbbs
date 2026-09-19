@@ -328,7 +328,7 @@
         // n8n is still used for AI features (photo analysis, barcode, AI coach)
         const N8N_BASE = 'https://billbotprocessing.app.n8n.cloud/webhook';
         // Named in the AI permission screen (Apple requires naming it). Replace with the provider your n8n coach uses.
-        const AI_PROVIDER_NAME = 'a third-party AI provider';
+        const AI_PROVIDER_NAME = 'OpenAI';
 
         const isConfigured = !SUPABASE_URL.includes('YOUR_PROJECT_REF') && !SUPABASE_ANON_KEY.startsWith('YOUR_');
         // Keep only https://<ref>.supabase.co (drops any accidental /rest/v1/ or trailing slash)
