@@ -4,8 +4,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="color-scheme" content="light dark">
-    <meta name="theme-color" content="#F2F4F1" media="(prefers-color-scheme: light)">
-    <meta name="theme-color" content="#0F1713" media="(prefers-color-scheme: dark)">
+    <meta name="theme-color" id="themeColor" content="#F2F4F1">
+    <script>
+        // Apply the saved theme before first paint so the page never flashes the wrong colors
+        (function () {
+            try {
+                var t = localStorage.getItem('theme');
+                if (t === 'light' || t === 'dark') {
+                    document.documentElement.setAttribute('data-theme', t);
+                    document.documentElement.style.colorScheme = t;
+                }
+            } catch (e) {}
+        })();
+    </script>
     <title>BuiltbyAbbs - Macro Tracker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,11 +36,25 @@
             --fats: #C8557A;
             --ok: #2E8B57;
             --over: #D2492F;
+            --on-over: #FFFFFF;
             --display: 'Bricolage Grotesque', system-ui, -apple-system, 'Segoe UI', sans-serif;
             --body: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
         }
+        :root[data-theme="dark"] {
+            --chalk: #0F1713;
+            --surface: #17211C;
+            --ink: #EBF1ED;
+            --ink-2: #9DADA3;
+            --line: #26342D;
+            --protein: #6C93FF;
+            --carbs: #F0B24E;
+            --fats: #E27A9C;
+            --ok: #4CC28A;
+            --over: #FF7458;
+            --on-over: #1A0F0B;
+        }
         @media (prefers-color-scheme: dark) {
-            :root {
+            :root:not([data-theme]) {
                 --chalk: #0F1713;
                 --surface: #17211C;
                 --ink: #EBF1ED;
@@ -40,6 +65,7 @@
                 --fats: #E27A9C;
                 --ok: #4CC28A;
                 --over: #FF7458;
+                --on-over: #1A0F0B;
             }
         }
 
@@ -247,7 +273,7 @@
             max-width: calc(100% - 32px); padding: 12px 18px; border-radius: 12px;
             background: var(--ink); color: var(--chalk); font-weight: 600; font-size: 14px; text-align: center;
         }
-        .toast.error { background: var(--over); color: #fff; }
+        .toast.error { background: var(--over); color: var(--on-over); }
         .busy {
             position: fixed; z-index: 70; left: 50%; transform: translateX(-50%);
             top: calc(64px + env(safe-area-inset-top));
@@ -258,13 +284,16 @@
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* ---------- Login ---------- */
-        .auth-wrap { height: 100vh; height: 100dvh; overflow-y: auto; }
+        .auth-wrap { height: 100vh; height: 100dvh; overflow-y: auto; position: relative; }
         .auth { max-width: 420px; margin: 0 auto; padding: calc(48px + env(safe-area-inset-top)) 24px 32px; }
         .brand { font: 700 40px/1.05 var(--display); letter-spacing: -0.03em; }
         .tag { color: var(--ink-2); margin-top: 10px; max-width: 30ch; }
         .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--line); border-radius: 12px; padding: 4px; margin: 28px 0 20px; }
         .seg button { min-height: 44px; border: 0; border-radius: 9px; background: transparent; color: var(--ink-2); font-weight: 600; font-size: 15px; }
-        .seg button[aria-selected="true"] { background: var(--surface); color: var(--ink); }
+        .seg button[aria-selected="true"], .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); }
+        .seg.three { grid-template-columns: repeat(3, 1fr); }
+        .topright { display: flex; align-items: center; gap: 6px; }
+        .theme-fab { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px; }
 
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -360,10 +389,58 @@
             trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
             left: '<path d="M15 5l-7 7 7 7"/>',
             right: '<path d="M9 5l7 7-7 7"/>',
-            send: '<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>'
+            send: '<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
+            close: '<path d="M6 6l12 12M18 6L6 18"/>',
+            sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+            moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'
         };
         function icon(name, size = 22) {
             return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+        }
+
+        // ---------- Theme (light / dark / system) ----------
+        function getThemePref() {
+            try { const t = localStorage.getItem('theme'); return t === 'light' || t === 'dark' ? t : 'system'; }
+            catch (e) { return 'system'; }
+        }
+        function systemPrefersDark() {
+            return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        }
+        function resolvedTheme() {
+            const p = getThemePref();
+            return p === 'system' ? (systemPrefersDark() ? 'dark' : 'light') : p;
+        }
+        function applyTheme() {
+            const pref = getThemePref(), root = document.documentElement;
+            if (pref === 'system') { root.removeAttribute('data-theme'); root.style.colorScheme = 'light dark'; }
+            else { root.setAttribute('data-theme', pref); root.style.colorScheme = pref; }
+            const meta = document.getElementById('themeColor');
+            if (meta) meta.setAttribute('content', resolvedTheme() === 'dark' ? '#0F1713' : '#F2F4F1');
+        }
+        function themeButtonHTML(cls) {
+            const dark = resolvedTheme() === 'dark';
+            return `<button class="iconbtn theme-btn ${cls || ''}" onclick="toggleTheme()" aria-label="${dark ? 'Switch to light mode' : 'Switch to dark mode'}">${icon(dark ? 'sun' : 'moon')}</button>`;
+        }
+        function updateThemeButtons() {
+            const dark = resolvedTheme() === 'dark';
+            document.querySelectorAll('.theme-btn').forEach(b => {
+                b.innerHTML = icon(dark ? 'sun' : 'moon');
+                b.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+            });
+        }
+        function setTheme(pref) {
+            try { if (pref === 'system') localStorage.removeItem('theme'); else localStorage.setItem('theme', pref); } catch (e) {}
+            applyTheme();
+            updateThemeButtons();
+            if (document.getElementById('themeSeg')) openMenuSheet();   // refresh the selected option
+        }
+        function toggleTheme() { setTheme(resolvedTheme() === 'dark' ? 'light' : 'dark'); }
+        applyTheme();
+        // Follow the phone's setting live while the choice is "System"
+        if (window.matchMedia) {
+            const mq = window.matchMedia('(prefers-color-scheme: dark)');
+            const onChange = () => { if (getThemePref() === 'system') { applyTheme(); updateThemeButtons(); } };
+            if (mq.addEventListener) mq.addEventListener('change', onChange);
         }
 
         // ---------- Toast, busy, sheet ----------
@@ -446,7 +523,7 @@
         function renderLogin() {
             closeSheet();
             document.getElementById('root').innerHTML = `
-                <div class="auth-wrap"><div class="auth">
+                <div class="auth-wrap">${themeButtonHTML('theme-fab')}<div class="auth">
                     <div class="brand">BuiltbyAbbs</div>
                     <p class="tag">Log your meals, hit your macros, and get coached by Abbs.</p>
 
@@ -576,7 +653,10 @@
                 <div class="app">
                     <header class="topbar">
                         <div class="wordmark">BuiltbyAbbs</div>
-                        <button class="avatar" onclick="openMenuSheet()" aria-label="Account menu">${initial}</button>
+                        <div class="topright">
+                            ${themeButtonHTML()}
+                            <button class="avatar" onclick="openMenuSheet()" aria-label="Account menu">${initial}</button>
+                        </div>
                     </header>
                     <main id="screen" class="screen" tabindex="-1"></main>
                     <nav class="tabbar" aria-label="Main">
@@ -595,7 +675,11 @@
             openSheet('Account', `
                 <div class="between" style="margin-bottom:16px">
                     <div><div class="h2">${esc(state.user.name)}</div><div class="sub">${esc(state.user.email)}</div></div>
-                    <button class="iconbtn" onclick="closeSheet()" aria-label="Close">${icon('left', 20)}</button>
+                    <button class="iconbtn" onclick="closeSheet()" aria-label="Close">${icon('close', 20)}</button>
+                </div>
+                <div class="sub" style="margin:0 0 6px;font-weight:600">Appearance</div>
+                <div class="seg three" id="themeSeg" role="group" aria-label="Appearance" style="margin:0 0 16px">
+                    ${['light', 'dark', 'system'].map(p => `<button aria-pressed="${getThemePref() === p}" onclick="setTheme('${p}')">${p.charAt(0).toUpperCase() + p.slice(1)}</button>`).join('')}
                 </div>
                 <button class="btn secondary" style="margin-bottom:10px" onclick="openGoalSheet()">Edit daily goals</button>
                 <button class="btn secondary" style="margin-bottom:10px" onclick="closeSheet(); importLegacyData()">Import old data</button>
