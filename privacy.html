@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="color-scheme" content="light dark">
+    <title>Privacy policy - BuiltbyAbbs</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        // Use the same light/dark choice as the app
+        (function () {
+            try {
+                var t = localStorage.getItem('theme');
+                if (t === 'light' || t === 'dark') {
+                    document.documentElement.setAttribute('data-theme', t);
+                    document.documentElement.style.colorScheme = t;
+                }
+            } catch (e) {}
+        })();
+    </script>
+    <style>
+        :root {
+            --chalk: #F2F4F1; --surface: #FFFFFF; --ink: #18251F; --ink-2: #55635B; --line: #DCE2DD;
+            --display: 'Bricolage Grotesque', system-ui, -apple-system, 'Segoe UI', sans-serif;
+            --body: 'Figtree', system-ui, -apple-system, 'Segoe UI', sans-serif;
+            --mark: #FFF1A8; --mark-ink: #4A3B00;
+        }
+        :root[data-theme="dark"] {
+            --chalk: #0F1713; --surface: #17211C; --ink: #EBF1ED; --ink-2: #9DADA3; --line: #26342D;
+            --mark: #5A4A00; --mark-ink: #FFF1A8;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme]) {
+                --chalk: #0F1713; --surface: #17211C; --ink: #EBF1ED; --ink-2: #9DADA3; --line: #26342D;
+                --mark: #5A4A00; --mark-ink: #FFF1A8;
+            }
+        }
+        * { box-sizing: border-box; }
+        html { -webkit-text-size-adjust: 100%; }
+        body {
+            margin: 0; background: var(--chalk); color: var(--ink);
+            font: 400 17px/1.6 var(--body);
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+        .wrap { max-width: 660px; margin: 0 auto; padding: 20px 20px 64px; }
+        .top { display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; }
+        .wordmark { font: 700 18px var(--display); letter-spacing: -0.01em; color: var(--ink); text-decoration: none; }
+        .back { color: var(--ink); font-weight: 600; font-size: 15px; text-underline-offset: 3px; min-height: 44px; display: inline-flex; align-items: center; }
+        h1 { font: 700 34px/1.1 var(--display); letter-spacing: -0.02em; margin: 20px 0 6px; }
+        h2 { font: 700 21px/1.25 var(--display); margin: 40px 0 8px; padding-top: 24px; border-top: 1px solid var(--line); }
+        h3 { font: 700 17px/1.3 var(--body); margin: 20px 0 4px; }
+        p { margin: 0 0 14px; }
+        ul { margin: 0 0 14px; padding-left: 22px; }
+        li { margin-bottom: 6px; }
+        a { color: var(--ink); text-underline-offset: 3px; }
+        .meta { color: var(--ink-2); font-size: 15px; margin: 0 0 24px; }
+        .summary { border-left: 3px solid var(--ink); padding: 2px 0 2px 16px; margin: 20px 0 8px; }
+        .summary p:last-child { margin-bottom: 0; }
+        .fill { background: var(--mark); color: var(--mark-ink); padding: 0 4px; border-radius: 4px; font-weight: 600; }
+        table { width: 100%; border-collapse: collapse; margin: 8px 0 16px; font-size: 15px; }
+        th, td { text-align: left; vertical-align: top; padding: 10px 12px 10px 0; border-top: 1px solid var(--line); }
+        th { font-weight: 700; width: 34%; }
+        :focus-visible { outline: 2px solid #2E5BD8; outline-offset: 2px; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="top">
+            <a class="wordmark" href="./">BuiltbyAbbs</a>
+            <a class="back" href="./">Back to app</a>
+        </div>
+
+        <h1>Privacy policy</h1>
+        <p class="meta">Effective September 19, 2026</p>
+
+        <div class="summary">
+            <p>BuiltbyAbbs is a macro tracker with an AI nutrition coach called Abbs. We collect only what the app needs to work: your account details, the food you log, your goals and your chat with Abbs.</p>
+            <p>We do not sell your data and we do not show ads. Your messages and photos go to an AI service only after you give permission, and you can turn that off or delete your whole account from inside the app at any time.</p>
+        </div>
+
+        <h2>What we collect</h2>
+        <table>
+            <tr><th>Account details</th><td>Your name, email address and password. Your password is stored in hashed form by our authentication provider, so we cannot read it.</td></tr>
+            <tr><th>What you log</th><td>Meals you add (food name, calories, protein, carbs, fats, date and time) and your daily goals.</td></tr>
+            <tr><th>Coach conversations</th><td>The messages you send to Abbs and Abbs's replies.</td></tr>
+            <tr><th>Photos you scan</th><td>Food photos, nutrition labels and barcodes you choose to scan. They are resized on your device and sent for analysis. We do not save them to your account.</td></tr>
+            <tr><th>Food searches</th><td>The words you type when searching for a food.</td></tr>
+            <tr><th>Your AI permission</th><td>Whether you allowed AI features, and when.</td></tr>
+            <tr><th>On your device</th><td>A login session, your light or dark mode choice, and saved copies of the app's files so it opens quickly and works offline. These stay on your device.</td></tr>
+        </table>
+        <p>Because your meals and goals can say something about your health, we treat them as sensitive and use them only to provide the app.</p>
+
+        <h2>How we use it</h2>
+        <ul>
+            <li>To run your account and show your meals, goals, progress and streaks.</li>
+            <li>To let Abbs give coaching that fits your goals and what you have eaten.</li>
+            <li>To find foods and read photos, labels and barcodes when you ask.</li>
+            <li>To keep the app secure and fix problems.</li>
+        </ul>
+        <p>We do not use your data for advertising, and we do not sell it.</p>
+
+        <h2>AI features and your permission</h2>
+        <p>Abbs and photo scanning use an AI service, OpenAI. The first time you use either one, the app asks for your permission and shows what will be sent. Nothing is sent to the AI service unless you tap Allow.</p>
+        <p>When you use them, the following goes to our workflow provider (n8n), which passes what is needed to OpenAI:</p>
+        <ul>
+            <li>Your messages to Abbs and recent conversation history.</li>
+            <li>Your first name, your calorie and macro goals, the meals you have logged, and your weekly stats such as streak and days logged.</li>
+            <li>Photos, labels and barcodes you choose to scan. These are sent without your name or email.</li>
+        </ul>
+        <p>We do not send your email address or password to the AI service. You can withdraw permission at any time from the account menu by choosing Turn off AI features. After that, nothing more is sent.</p>
+
+        <h2>Who else handles your data</h2>
+        <p>We use these services to run the app. Each handles data under its own terms and privacy policy.</p>
+        <table>
+            <tr><th>Supabase</th><td>Stores your account and data, and runs our sign-in and small server functions.</td></tr>
+            <tr><th>n8n</th><td>Runs the workflows that pass your coach messages and scans to the AI service. It may keep a log of workflow runs.</td></tr>
+            <tr><th>OpenAI</th><td>The AI service that writes Abbs's replies and reads scanned photos, only after you give permission.</td></tr>
+            <tr><th>USDA FoodData Central</th><td>Provides food nutrition data. Your search words are sent from our server, without your name or email.</td></tr>
+            <tr><th>Google Fonts and jsDelivr</th><td>Deliver the app's fonts and a code library. Like any website host, they can see your IP address and device details when your device loads them.</td></tr>
+        </table>
+        <p>We may also share information if the law requires it, or to protect the safety and rights of our users.</p>
+
+        <h2>Your choices and rights</h2>
+        <ul>
+            <li><strong>Edit or delete meals</strong> in the app whenever you like.</li>
+            <li><strong>Turn off AI features</strong> from the account menu.</li>
+            <li><strong>Delete your account</strong> from the account menu. This permanently removes your account, meals, goals and chat history.</li>
+            <li><strong>Ask us</strong> for a copy of your data or to correct it by emailing <span class="fill">botaiautomations@outlook.com</span>.</li>
+        </ul>
+        <p>Depending on where you live, you may have additional rights, such as access, correction, deletion, portability or objection. Contact us and we will help.</p>
+
+        <h2>How long we keep it</h2>
+        <p>We keep your data until you delete it or delete your account. Deleting your account removes your data from our live database straight away. Backups kept by our database provider, and logs kept by the services listed above, may hold copies for a short time before they expire.</p>
+
+        <h2>Security</h2>
+        <p>Data travels over encrypted connections, and the database is set up so each person can access only their own information. No system is perfectly secure, so please use a strong, unique password.</p>
+
+        <h2>Not medical advice</h2>
+        <p>Abbs gives general nutrition information and encouragement. It is not medical advice and does not replace a doctor or registered dietitian. If you have a medical condition, are pregnant, take medication, or have concerns about your relationship with food, please talk to a health professional.</p>
+
+        <h2>Children</h2>
+        <p>BuiltbyAbbs is not directed to children under 13, and we do not knowingly collect their information. If you believe a child has given us data, contact us and we will delete it.</p>
+
+        <h2>Changes to this policy</h2>
+        <p>If we change this policy, we will update the date at the top. If a change is significant, we will let you know in the app or by email.</p>
+
+        <h2>Contact us</h2>
+        <p>Questions or requests about your privacy: <span class="fill">botaiautomations@outlook.com</span></p>
+    </div>
+</body>
+</html>
