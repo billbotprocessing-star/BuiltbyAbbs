@@ -33,7 +33,7 @@ Since this is a client-side application, getting started is as simple as opening
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/your-username/macro-tracker.git](https://github.com/your-username/macro-tracker.git)
+    git clone https://github.com/billbotprocessing-star/BuiltbyAbbs.git
     ```
 2.  **Open the project:**
     Simply open `index.html` in any modern web browser.
