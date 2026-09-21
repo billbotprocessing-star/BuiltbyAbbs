@@ -345,7 +345,11 @@
             selectedWeek: 0,
             user: null,
             isAuthenticated: false,
-            foodSearch: newFoodSearch()
+            foodSearch: newFoodSearch(),
+            // Grams behind whatever is currently filled into the Details/sheet entry
+            // fields, when known (from a food search pick or a "log again" with a
+            // saved amount) - lets addFood/addToDate persist it alongside the entry.
+            pendingGrams: null
         };
         let chatBusy = false;
 
@@ -390,13 +394,14 @@
             return {
                 id: r.id, name: r.name,
                 protein: num(r.protein), carbs: num(r.carbs), fats: num(r.fats), calories: num(r.calories),
-                date: r.entry_date, time: r.entry_time || ''
+                date: r.entry_date, time: r.entry_time || '',
+                grams: r.entry_grams != null ? num(r.entry_grams) : null
             };
         }
         function toRow(e) {
             return {
                 name: e.name, protein: e.protein, carbs: e.carbs, fats: e.fats, calories: e.calories,
-                entry_date: e.date, entry_time: e.time
+                entry_date: e.date, entry_time: e.time, entry_grams: e.grams != null ? e.grams : null
             };
         }
 
@@ -1172,11 +1177,13 @@
                 fats: parseFloat(document.getElementById(p + 'Fats').value) || 0,
                 calories: parseFloat(document.getElementById(p + 'Calories').value) || 0,
                 date: date || toISO(new Date()),
-                time: nowTime()
+                time: nowTime(),
+                grams: state.pendingGrams
             };
         }
 
         function clearEntryFields(p) {
+            state.pendingGrams = null;
             ['Name', 'Protein', 'Carbs', 'Fats', 'Calories'].forEach(k => { document.getElementById(p + k).value = ''; });
         }
 
@@ -1374,6 +1381,7 @@
         }
 
         function openAddMealSheet(date) {
+            state.pendingGrams = null;
             openSheet('Add a meal', `
                 <h2 class="h2" style="margin-bottom:16px">Add a meal to ${fmtLong(date)}</h2>
                 ${renderEntryFields('sheet')}
@@ -1396,6 +1404,7 @@
                 return;
             }
 
+            state.pendingGrams = null;
             closeSheet();
             renderActiveTab();
             toast(`Added ${entry.name}`);
@@ -1404,6 +1413,26 @@
         function openLogAgainSheet(id) {
             const e = state.foodEntries.find(x => Number(x.id) === Number(id));
             if (!e) return;
+
+            // Entries logged with a known amount can be rescaled by grams, same as
+            // picking a food from search. Older entries (or hand-typed macros) have
+            // no per-gram baseline to rescale from, so fall back to editing the totals.
+            if (e.grams > 0) {
+                state.logAgain = {
+                    name: e.name,
+                    grams: fmtGrams(e.grams),
+                    per100g: {
+                        calories: e.calories / e.grams * 100,
+                        protein: e.protein / e.grams * 100,
+                        carbs: e.carbs / e.grams * 100,
+                        fats: e.fats / e.grams * 100
+                    }
+                };
+                openSheet('Log again', renderLogAgainPicker());
+                return;
+            }
+
+            state.pendingGrams = null;
             openSheet('Log again', `
                 <h2 class="h2" style="margin-bottom:16px">Log ${esc(e.name)} again</h2>
                 <p class="sub" style="margin-top:0">Adjust the amount if today's portion was different.</p>
@@ -1413,6 +1442,68 @@
                     <button class="btn" onclick="addToDate('${toISO(new Date())}')">Log it</button>
                 </div>
             `);
+        }
+
+        function renderLogAgainPicker() {
+            const la = state.logAgain;
+            const m = portionMacros(la, la.grams);
+            return `
+                <h2 class="h2" style="margin-bottom:4px">Log ${esc(la.name)} again</h2>
+                <p class="sub" style="margin-top:0">Adjust the amount if today's portion was different.</p>
+                <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px">
+                    <label for="logAgainGrams" style="font-weight:600;font-size:14px">Amount (g)</label>
+                    <input type="number" inputmode="decimal" id="logAgainGrams" min="1" step="1" value="${fmtGrams(la.grams)}"
+                        oninput="updateLogAgainPortion()" class="in" style="width:96px">
+                    <span class="sub" id="logAgainGramsOz" style="margin:0">&asymp; ${gramsToOz(la.grams)} oz</span>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+                    <button class="pill" onclick="setLogAgainGrams(100)">100 g</button>
+                    <button class="pill" onclick="setLogAgainGrams(${fmtGrams(la.grams)})">Same as last time, ${fmtGrams(la.grams)} g</button>
+                </div>
+                <div id="logAgainMacros" style="margin-top:12px">${macroLine(m)}</div>
+                <div class="grid2" style="margin-top:14px">
+                    <button class="btn secondary" onclick="closeSheet()">Cancel</button>
+                    <button class="btn" onclick="saveLogAgain()">Log it</button>
+                </div>
+            `;
+        }
+
+        function setLogAgainGrams(g) {
+            state.logAgain.grams = g;
+            const input = document.getElementById('logAgainGrams');
+            if (input) input.value = g;
+            updateLogAgainPortion();
+        }
+
+        function updateLogAgainPortion() {
+            const la = state.logAgain;
+            const input = document.getElementById('logAgainGrams');
+            if (input) la.grams = num(input.value);
+            const oz = document.getElementById('logAgainGramsOz');
+            if (oz) oz.textContent = `≈ ${gramsToOz(la.grams)} oz`;
+            const el = document.getElementById('logAgainMacros');
+            if (el) el.innerHTML = macroLine(portionMacros(la, la.grams));
+        }
+
+        async function saveLogAgain() {
+            const la = state.logAgain;
+            const grams = num(la && la.grams);
+            if (!la || grams <= 0) return;
+            const m = portionMacros(la, grams);
+            const entry = { name: la.name, protein: m.protein, carbs: m.carbs, fats: m.fats, calories: m.calories, date: toISO(new Date()), time: nowTime(), grams };
+
+            try {
+                await insertEntry(entry);
+            } catch (error) {
+                console.error('Failed to log entry again:', error);
+                toast('Could not log this again: ' + (error.message || error), 'error');
+                return;
+            }
+
+            state.logAgain = null;
+            closeSheet();
+            renderActiveTab();
+            toast(`Logged ${entry.name}`);
         }
 
         async function deleteEntry(id) {
@@ -1609,13 +1700,14 @@
             if (el && fs.selected) el.innerHTML = macroLine(portionMacros(fs.selected, fs.grams));
         }
 
-        function fillFoodForm(name, m) {
+        function fillFoodForm(name, m, grams) {
             document.getElementById('foodName').value = name;
             document.getElementById('foodProtein').value = m.protein;
             document.getElementById('foodCarbs').value = m.carbs;
             document.getElementById('foodFats').value = m.fats;
             document.getElementById('foodCalories').value = m.calories;
             document.getElementById('foodName').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            state.pendingGrams = grams != null ? grams : null;
         }
 
         function applySelectedFood() {
@@ -1623,7 +1715,7 @@
             const f = fs.selected;
             const grams = num(fs.grams);
             if (!f || grams <= 0) return;
-            fillFoodForm(`${f.name}${f.brand ? ' (' + f.brand + ')' : ''} - ${grams} g`, portionMacros(f, grams));
+            fillFoodForm(`${f.name}${f.brand ? ' (' + f.brand + ')' : ''} - ${grams} g`, portionMacros(f, grams), grams);
             fs.selected = null;
             updateFoodSearchUI();
             toast('Filled in. Check the details, then log it.');
@@ -1632,7 +1724,7 @@
         function useRecentFood(i) {
             const e = getRecentFoods()[i];
             if (!e) return;
-            fillFoodForm(e.name, { protein: e.protein, carbs: e.carbs, fats: e.fats, calories: e.calories });
+            fillFoodForm(e.name, { protein: e.protein, carbs: e.carbs, fats: e.fats, calories: e.calories }, e.grams);
         }
 
         // ---------- AI features (still served by n8n) ----------

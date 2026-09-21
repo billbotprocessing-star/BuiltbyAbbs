@@ -23,11 +23,15 @@ create table if not exists public.food_entries (
   calories   numeric not null default 0,
   entry_date date not null,          -- local calendar day, e.g. 2026-09-19
   entry_time text,                   -- display string, e.g. "02:15 PM"
+  entry_grams numeric,               -- amount eaten in grams, when known (lets "log again" rescale the portion)
   created_at timestamptz not null default now()
 );
 
 create index if not exists food_entries_user_date_idx
   on public.food_entries (user_id, entry_date desc);
+
+-- Migration for an existing database that already has food_entries without entry_grams:
+-- alter table public.food_entries add column if not exists entry_grams numeric;
 
 create table if not exists public.chat_messages (
   id         bigint generated always as identity primary key,
