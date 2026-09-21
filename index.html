@@ -411,6 +411,7 @@
             camera: '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="4"/>',
             barcode: '<path d="M4 6v12M7 6v12M10 6v12M14 6v12M17 6v12M20 6v12"/>',
             trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+            repeat: '<path d="M17 2l4 4-4 4"/><path d="M21 6H8a5 5 0 0 0-5 5v1"/><path d="M7 22l-4-4 4-4"/><path d="M3 18h13a5 5 0 0 0 5-5v-1"/>',
             left: '<path d="M15 5l-7 7 7 7"/>',
             right: '<path d="M9 5l7 7-7 7"/>',
             send: '<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',
@@ -1244,7 +1245,10 @@
                                     <div class="rname">${esc(e.name)}</div>
                                     <div class="rmeta">${macroLine(e)}${e.time ? `<span class="mc">${esc(e.time)}</span>` : ''}</div>
                                 </div>
-                                <button class="iconbtn" onclick="deleteEntry(${Number(e.id)})" aria-label="Delete ${esc(e.name)}">${icon('trash', 20)}</button>
+                                <div style="display:flex;gap:4px">
+                                    <button class="iconbtn" onclick="logAgain(${Number(e.id)})" aria-label="Log ${esc(e.name)} again">${icon('repeat', 20)}</button>
+                                    <button class="iconbtn" onclick="deleteEntry(${Number(e.id)})" aria-label="Delete ${esc(e.name)}">${icon('trash', 20)}</button>
+                                </div>
                             </div>`).join('')}`;
                 }).join('')}
             `;
@@ -1393,6 +1397,22 @@
             closeSheet();
             renderActiveTab();
             toast(`Added ${entry.name}`);
+        }
+
+        async function logAgain(id) {
+            const e = state.foodEntries.find(x => Number(x.id) === Number(id));
+            if (!e) return;
+
+            try {
+                await insertEntry({ name: e.name, protein: e.protein, carbs: e.carbs, fats: e.fats, calories: e.calories, date: toISO(new Date()), time: nowTime() });
+            } catch (error) {
+                console.error('Failed to log entry again:', error);
+                toast('Could not log this again: ' + (error.message || error), 'error');
+                return;
+            }
+
+            renderActiveTab();
+            toast(`Logged ${e.name} for today`);
         }
 
         async function deleteEntry(id) {
