@@ -363,6 +363,19 @@
         function fmtLong(s) { return parseISO(s).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
         function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
         function round1(n) { return Math.round(n * 10) / 10; }
+        // Serving sizes from USDA can arrive as long floats (28.399999618530273) or
+        // shouty unit codes (ONZ, GRM) - clean both up for display.
+        function fmtGrams(g) { return round1(num(g)); }
+        const SERVING_UNIT_LABELS = { ONZ: 'oz', OZ: 'oz', GRM: 'g', GM: 'g', ML: 'mL', MLT: 'mL', LT: 'L', CUP: 'cup', TBSP: 'tbsp', TSP: 'tsp', PKG: 'package', SERVING: 'serving', SLICE: 'slice', PIECE: 'piece', CT: 'count', BAR: 'bar', CAN: 'can', BTL: 'bottle' };
+        function fmtServingText(t) {
+            if (!t) return '';
+            return String(t).trim().split(/\s+/).map(word => {
+                const clean = word.replace(/[(),]/g, '');
+                const label = SERVING_UNIT_LABELS[clean.toUpperCase()];
+                return label ? word.replace(clean, label) : word;
+            }).join(' ');
+        }
+        function gramsToOz(g) { return round1(num(g) / 28.3495); }
         function pct(value, goal) { return goal > 0 ? Math.min((value / goal) * 100, 100) : 0; }
         function fmt(n) { return Number(n).toLocaleString('en-US'); }
         function truncate(s, n) { s = String(s); return s.length > n ? s.slice(0, n - 1).trimEnd() + '...' : s; }
@@ -1443,10 +1456,13 @@
                         ${f.brand ? `<div class="sub" style="margin-top:0">${esc(f.brand)}</div>` : ''}
                         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px">
                             <label for="foodGrams" style="font-weight:600;font-size:14px">Amount (g)</label>
-                            <input type="number" inputmode="decimal" id="foodGrams" min="1" step="1" value="${num(fs.grams)}"
+                            <input type="number" inputmode="decimal" id="foodGrams" min="1" step="1" value="${fmtGrams(fs.grams)}"
                                 oninput="updateFoodPortion()" class="in" style="width:96px">
+                            <span class="sub" id="foodGramsOz" style="margin:0">&asymp; ${gramsToOz(fs.grams)} oz</span>
+                        </div>
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
                             <button class="pill" onclick="setFoodGrams(100)">100 g</button>
-                            ${f.servingGrams ? `<button class="pill" onclick="setFoodGrams(${num(f.servingGrams)})">1 serving${f.servingText ? ' (' + esc(f.servingText) + ')' : ''}, ${num(f.servingGrams)} g</button>` : ''}
+                            ${f.servingGrams ? `<button class="pill" onclick="setFoodGrams(${fmtGrams(f.servingGrams)})">1 serving${f.servingText ? ' (' + esc(fmtServingText(f.servingText)) + ')' : ''}, ${fmtGrams(f.servingGrams)} g</button>` : ''}
                         </div>
                         <div id="foodPortionMacros" style="margin-top:12px">${macroLine(m)}</div>
                         <div class="grid2" style="margin-top:14px">
@@ -1540,7 +1556,7 @@
             const f = fs.results && fs.results[i];
             if (!f) return;
             fs.selected = f;
-            fs.grams = f.servingGrams || 100;
+            fs.grams = fmtGrams(f.servingGrams) || 100;
             updateFoodSearchUI();
         }
 
@@ -1567,6 +1583,8 @@
             const fs = state.foodSearch;
             const input = document.getElementById('foodGrams');
             if (input) fs.grams = num(input.value);
+            const oz = document.getElementById('foodGramsOz');
+            if (oz) oz.textContent = `≈ ${gramsToOz(fs.grams)} oz`;
             const el = document.getElementById('foodPortionMacros');
             if (el && fs.selected) el.innerHTML = macroLine(portionMacros(fs.selected, fs.grams));
         }
