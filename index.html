@@ -1410,22 +1410,34 @@
             toast(`Added ${entry.name}`);
         }
 
+        // Entries logged from food search carry their amount in the name itself,
+        // e.g. "Toast - 30 g" (see applySelectedFood). Use that as a grams fallback
+        // for entries logged before entry_grams existed, and strip it for display.
+        function splitNameAndGrams(name) {
+            const m = /^(.*?)\s*-\s*([\d.]+)\s*g$/i.exec(String(name || '').trim());
+            return m ? { baseName: m[1].trim(), grams: parseFloat(m[2]) } : { baseName: name, grams: null };
+        }
+
         function openLogAgainSheet(id) {
             const e = state.foodEntries.find(x => Number(x.id) === Number(id));
             if (!e) return;
 
-            // Entries logged with a known amount can be rescaled by grams, same as
-            // picking a food from search. Older entries (or hand-typed macros) have
-            // no per-gram baseline to rescale from, so fall back to editing the totals.
-            if (e.grams > 0) {
+            // Entries with a known amount (stored directly, or recovered from the
+            // name) can be rescaled by grams, same as picking a food from search.
+            // Fully hand-typed entries have no per-gram baseline, so fall back to
+            // editing the totals.
+            const split = splitNameAndGrams(e.name);
+            const grams = e.grams > 0 ? e.grams : split.grams;
+
+            if (grams > 0) {
                 state.logAgain = {
-                    name: e.name,
-                    grams: fmtGrams(e.grams),
+                    name: split.baseName,
+                    grams: fmtGrams(grams),
                     per100g: {
-                        calories: e.calories / e.grams * 100,
-                        protein: e.protein / e.grams * 100,
-                        carbs: e.carbs / e.grams * 100,
-                        fats: e.fats / e.grams * 100
+                        calories: e.calories / grams * 100,
+                        protein: e.protein / grams * 100,
+                        carbs: e.carbs / grams * 100,
+                        fats: e.fats / grams * 100
                     }
                 };
                 openSheet('Log again', renderLogAgainPicker());
@@ -1490,7 +1502,7 @@
             const grams = num(la && la.grams);
             if (!la || grams <= 0) return;
             const m = portionMacros(la, grams);
-            const entry = { name: la.name, protein: m.protein, carbs: m.carbs, fats: m.fats, calories: m.calories, date: toISO(new Date()), time: nowTime(), grams };
+            const entry = { name: `${la.name} - ${fmtGrams(grams)} g`, protein: m.protein, carbs: m.carbs, fats: m.fats, calories: m.calories, date: toISO(new Date()), time: nowTime(), grams };
 
             try {
                 await insertEntry(entry);
