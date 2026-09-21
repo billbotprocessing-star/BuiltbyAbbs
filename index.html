@@ -1144,19 +1144,21 @@
         }
 
         // Shared entry fields (ids: <prefix>Name, <prefix>Protein, <prefix>Carbs, <prefix>Fats, <prefix>Calories)
-        function renderEntryFields(p) {
+        // Pass `vals` to pre-fill (e.g. editing a repeat of a past entry) instead of starting blank.
+        function renderEntryFields(p, vals) {
+            const v = k => (vals && vals[k] !== undefined && vals[k] !== null) ? esc(String(vals[k])) : '';
             return `
                 <label class="field"><span>Food name</span>
-                    <input class="in" type="text" id="${p}Name" placeholder="e.g. Chicken and rice" autocomplete="off"></label>
+                    <input class="in" type="text" id="${p}Name" placeholder="e.g. Chicken and rice" autocomplete="off" value="${v('name')}"></label>
                 <div class="grid2">
                     <label class="field"><span><i class="dot" style="background:var(--protein)"></i>Protein (g)</span>
-                        <input class="in" type="number" inputmode="decimal" min="0" step="any" id="${p}Protein" placeholder="0"></label>
+                        <input class="in" type="number" inputmode="decimal" min="0" step="any" id="${p}Protein" placeholder="0" value="${v('protein')}"></label>
                     <label class="field"><span><i class="dot" style="background:var(--carbs)"></i>Carbs (g)</span>
-                        <input class="in" type="number" inputmode="decimal" min="0" step="any" id="${p}Carbs" placeholder="0"></label>
+                        <input class="in" type="number" inputmode="decimal" min="0" step="any" id="${p}Carbs" placeholder="0" value="${v('carbs')}"></label>
                     <label class="field"><span><i class="dot" style="background:var(--fats)"></i>Fats (g)</span>
-                        <input class="in" type="number" inputmode="decimal" min="0" step="any" id="${p}Fats" placeholder="0"></label>
+                        <input class="in" type="number" inputmode="decimal" min="0" step="any" id="${p}Fats" placeholder="0" value="${v('fats')}"></label>
                     <label class="field"><span>Calories</span>
-                        <input class="in" type="number" inputmode="decimal" min="0" step="any" id="${p}Calories" placeholder="0"></label>
+                        <input class="in" type="number" inputmode="decimal" min="0" step="any" id="${p}Calories" placeholder="0" value="${v('calories')}"></label>
                 </div>`;
         }
 
@@ -1246,7 +1248,7 @@
                                     <div class="rmeta">${macroLine(e)}${e.time ? `<span class="mc">${esc(e.time)}</span>` : ''}</div>
                                 </div>
                                 <div style="display:flex;gap:4px">
-                                    <button class="iconbtn" onclick="logAgain(${Number(e.id)})" aria-label="Log ${esc(e.name)} again">${icon('repeat', 20)}</button>
+                                    <button class="iconbtn" onclick="openLogAgainSheet(${Number(e.id)})" aria-label="Log ${esc(e.name)} again">${icon('repeat', 20)}</button>
                                     <button class="iconbtn" onclick="deleteEntry(${Number(e.id)})" aria-label="Delete ${esc(e.name)}">${icon('trash', 20)}</button>
                                 </div>
                             </div>`).join('')}`;
@@ -1399,20 +1401,18 @@
             toast(`Added ${entry.name}`);
         }
 
-        async function logAgain(id) {
+        function openLogAgainSheet(id) {
             const e = state.foodEntries.find(x => Number(x.id) === Number(id));
             if (!e) return;
-
-            try {
-                await insertEntry({ name: e.name, protein: e.protein, carbs: e.carbs, fats: e.fats, calories: e.calories, date: toISO(new Date()), time: nowTime() });
-            } catch (error) {
-                console.error('Failed to log entry again:', error);
-                toast('Could not log this again: ' + (error.message || error), 'error');
-                return;
-            }
-
-            renderActiveTab();
-            toast(`Logged ${e.name} for today`);
+            openSheet('Log again', `
+                <h2 class="h2" style="margin-bottom:16px">Log ${esc(e.name)} again</h2>
+                <p class="sub" style="margin-top:0">Adjust the amount if today's portion was different.</p>
+                ${renderEntryFields('sheet', e)}
+                <div class="grid2">
+                    <button class="btn secondary" onclick="closeSheet()">Cancel</button>
+                    <button class="btn" onclick="addToDate('${toISO(new Date())}')">Log it</button>
+                </div>
+            `);
         }
 
         async function deleteEntry(id) {
